@@ -1,6 +1,7 @@
-import cProfile
 import glob
 import pstats
+import subprocess
+import sys
 from datetime import datetime as dt
 from pathlib import Path
 
@@ -49,11 +50,19 @@ from vivarium_profiling.tools.run_benchmark import run_benchmark_loop
         "and processed later using the pstats module."
     ),
 )
+@click.option(
+    "--profiler",
+    type=click.Choice(["cprofile", "scalene"]),
+    default="scalene",
+    show_default=True,
+    help="Profiling backend to use.",
+)
 def profile_sim(
     model_specification: Path,
     results_directory: Path,
     skip_writing: bool,
     skip_processing: bool,
+    profiler: str,
 ) -> None:
     """Run a simulation based on the provided MODEL_SPECIFICATION and profile the run."""
     model_specification = Path(model_specification)
@@ -70,17 +79,62 @@ def profile_sim(
             "output_data": {"results_directory": str(output_data_root)},
         }
 
-    out_stats_file = results_root / f"{model_specification.name}".replace("yaml", "stats")
-    sim = SimulationContext(model_specification, configuration=configuration_override)
-    command = f"sim.run_simulation()"
-    cProfile.runctx(command, globals=globals(), locals=locals(), filename=str(out_stats_file))
+    # Get path to the static profiling script
+    script_path = Path(__file__).parent / "run_profile.py"
 
-    if not skip_processing:
-        out_txt_file = Path(str(out_stats_file) + ".txt")
-        with out_txt_file.open("w") as f:
-            p = pstats.Stats(str(out_stats_file), stream=f)
-            p.sort_stats("cumulative")
-            p.print_stats()
+    # Convert config override to string representation
+    config_str = repr(configuration_override)
+
+    if profiler == "scalene":
+        out_json_file = results_root / f"{model_specification.name}".replace("yaml", "json")
+        try:
+            subprocess.run(
+                [
+                    "scalene",
+                    "--json",
+                    "--outfile",
+                    str(out_json_file),
+                    "--off",
+                    str(script_path),
+                    str(model_specification),
+                    "--config-override",
+                    config_str,
+                ],
+                check=True,
+            )
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Scalene profiling failed: {e}")
+            raise
+    elif profiler == "cprofile":
+        # For cProfile, we'll run the script directly and handle profiling internally
+        out_stats_file = results_root / f"{model_specification.name}".replace("yaml", "stats")
+        try:
+            subprocess.run(
+                [
+                    "python",
+                    str(script_path),
+                    str(model_specification),
+                    "--config-override",
+                    config_str,
+                    "--profiler",
+                    "cprofile",
+                    "--output",
+                    str(out_stats_file),
+                ],
+                check=True,
+            )
+
+            # Process the profile output if not skipping
+            if not skip_processing:
+                out_txt_file = Path(str(out_stats_file) + ".txt")
+                with out_txt_file.open("w") as f:
+                    p = pstats.Stats(str(out_stats_file), stream=f)
+                    p.sort_stats("cumulative")
+                    p.print_stats()
+
+        except subprocess.CalledProcessError as e:
+            logger.error(f"cProfile profiling failed: {e}")
+            raise
 
 
 @click.command()

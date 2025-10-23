@@ -50,9 +50,9 @@ if __name__ == "__main__":
         "vivarium_public_health>=4.3.5",
         "jinja2",
         "pyyaml",
-        "memory_profiler",
         "matplotlib",
         "seaborn",
+        "scalene",
     ]
 
     setup_requires = ["setuptools_scm"]

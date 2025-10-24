@@ -1,13 +1,11 @@
 import glob
 import pstats
 import subprocess
-import sys
 from datetime import datetime as dt
 from pathlib import Path
 
 import click
 from loguru import logger
-from vivarium.framework.engine import SimulationContext
 from vivarium.framework.logging import configure_logging_to_file
 from vivarium.framework.utilities import handle_exceptions
 

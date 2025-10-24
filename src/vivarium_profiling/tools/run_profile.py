@@ -5,25 +5,18 @@ import argparse
 import ast
 import cProfile
 import sys
-
+from scalene import scalene_profiler
 from vivarium.framework.engine import SimulationContext
 
 
-def run_profile_scalene(model_specification_path: str, configuration_override: dict):
+def run_profile_scalene(sim: SimulationContext):
     """Run a Vivarium simulation for scalene profiling purposes."""
-    from scalene.scalene_profiler import enable_profiling
-
-    sim = SimulationContext(model_specification_path, configuration=configuration_override)
-    with enable_profiling():
+    with scalene_profiler.enable_profiling():
         sim.run_simulation()
 
 
-def run_profile_cprofile(
-    model_specification_path: str, configuration_override: dict, output_file: str
-):
+def run_profile_cprofile(sim: SimulationContext, output_file: str):
     """Run a Vivarium simulation for cProfile profiling purposes."""
-    sim = SimulationContext(model_specification_path, configuration=configuration_override)
-
     with cProfile.Profile() as profiler:
         sim.run_simulation()
     profiler.dump_stats(output_file)
@@ -54,13 +47,15 @@ def main():
         print(f"Error parsing config override: {e}", file=sys.stderr)
         sys.exit(1)
 
+    sim = SimulationContext(args.model_specification, configuration=configuration_override)
+
     if args.profiler == "scalene":
-        run_profile_scalene(args.model_specification, configuration_override)
+        run_profile_scalene(sim)
     elif args.profiler == "cprofile":
         if not args.output:
             print("Error: --output is required when using cprofile", file=sys.stderr)
             sys.exit(1)
-        run_profile_cprofile(args.model_specification, configuration_override, args.output)
+        run_profile_cprofile(sim, args.output)
 
 
 if __name__ == "__main__":

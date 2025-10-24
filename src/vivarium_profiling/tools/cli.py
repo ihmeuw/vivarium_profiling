@@ -16,7 +16,7 @@ from vivarium_profiling.tools import build_artifacts, configure_logging_to_termi
 from vivarium_profiling.tools.run_benchmark import run_benchmark_loop
 
 
-@click.command()
+@click.command(context_settings={"allow_extra_args": True, "ignore_unknown_options": True})
 @click.argument(
     "model_specification",
     type=click.Path(exists=True, dir_okay=False, resolve_path=True),
@@ -57,7 +57,9 @@ from vivarium_profiling.tools.run_benchmark import run_benchmark_loop
     show_default=True,
     help="Profiling backend to use.",
 )
+@click.pass_context
 def profile_sim(
+    ctx: click.Context,
     model_specification: Path,
     results_directory: Path,
     skip_writing: bool,
@@ -85,23 +87,30 @@ def profile_sim(
     # Convert config override to string representation
     config_str = repr(configuration_override)
 
+    # Get any extra arguments passed to the profiler
+    extra_args = ctx.args
+
     if profiler == "scalene":
         out_json_file = results_root / f"{model_specification.name}".replace("yaml", "json")
         try:
-            subprocess.run(
+            cmd = [
+                "scalene",
+                "--json",
+                "--outfile",
+                str(out_json_file),
+                "--off",
+            ]
+            # Add any additional profiler arguments
+            cmd.extend(extra_args)
+            cmd.extend(
                 [
-                    "scalene",
-                    "--json",
-                    "--outfile",
-                    str(out_json_file),
-                    "--off",
                     str(script_path),
                     str(model_specification),
                     "--config-override",
                     config_str,
-                ],
-                check=True,
+                ]
             )
+            subprocess.run(cmd, check=True)
         except subprocess.CalledProcessError as e:
             logger.error(f"Scalene profiling failed: {e}")
             raise

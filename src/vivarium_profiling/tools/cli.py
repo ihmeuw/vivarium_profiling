@@ -196,7 +196,7 @@ def make_artifacts(
 @click.command()
 @click.option(
     "-m",
-    "--models",
+    "--model_specifications",
     multiple=True,
     required=True,
     help="Model specification files (supports glob patterns). Can be specified multiple times.",

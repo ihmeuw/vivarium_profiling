@@ -1,5 +1,4 @@
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -15,16 +14,17 @@ def model_spec(test_model_specs: list[Path]) -> str:
     return str(test_model_specs[0])
 
 
-@patch("vivarium_profiling.tools.run_profile.SimulationContext")
-@patch("scalene.scalene_profiler.enable_profiling")
-def test_run_profile_scalene_uses_correct_context_manager(
-    mock_enable_profiling, mock_simulation_context, model_spec: str
-):
+def test_run_profile_scalene_uses_correct_context_manager(mocker, model_spec: str):
     """Test that run_profile_scalene uses scalene's enable_profiling context manager."""
     # Setup mocks
-    mock_sim = MagicMock()
+    mock_sim = mocker.MagicMock()
+    mock_simulation_context = mocker.patch(
+        "vivarium_profiling.tools.run_profile.SimulationContext"
+    )
     mock_simulation_context.return_value = mock_sim
-    mock_context_manager = MagicMock()
+
+    mock_context_manager = mocker.MagicMock()
+    mock_enable_profiling = mocker.patch("scalene.scalene_profiler.enable_profiling")
     mock_enable_profiling.return_value = mock_context_manager
 
     # Run the function
@@ -45,16 +45,19 @@ def test_run_profile_scalene_uses_correct_context_manager(
     mock_sim.run_simulation.assert_called_once()
 
 
-@patch("vivarium_profiling.tools.run_profile.SimulationContext")
-@patch("cProfile.Profile")
 def test_run_profile_cprofile_uses_correct_context_manager(
-    mock_profile_class, mock_simulation_context, model_spec: str, tmp_path: Path
+    mocker, model_spec: str, tmp_path: Path
 ):
     """Test that run_profile_cprofile uses cProfile.Profile context manager."""
     # Setup mocks
-    mock_sim = MagicMock()
+    mock_sim = mocker.MagicMock()
+    mock_simulation_context = mocker.patch(
+        "vivarium_profiling.tools.run_profile.SimulationContext"
+    )
     mock_simulation_context.return_value = mock_sim
-    mock_profiler = MagicMock()
+
+    mock_profiler = mocker.MagicMock()
+    mock_profile_class = mocker.patch("cProfile.Profile")
     mock_profile_class.return_value = mock_profiler
 
     # The context manager should return the same profiler instance

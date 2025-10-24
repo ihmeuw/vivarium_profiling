@@ -81,10 +81,8 @@ def profile_sim(
             "output_data": {"results_directory": str(output_data_root)},
         }
 
-    # Get path to the static profiling script
     script_path = Path(__file__).parent / "run_profile.py"
 
-    # Convert config override to string representation
     config_str = repr(configuration_override)
 
     # Get any extra arguments passed to the profiler
@@ -115,7 +113,6 @@ def profile_sim(
             logger.error(f"Scalene profiling failed: {e}")
             raise
     elif profiler == "cprofile":
-        # For cProfile, we'll run the script directly and handle profiling internally
         out_stats_file = results_root / f"{model_specification.name}".replace("yaml", "stats")
         try:
             subprocess.run(
@@ -133,7 +130,6 @@ def profile_sim(
                 check=True,
             )
 
-            # Process the profile output if not skipping
             if not skip_processing:
                 out_txt_file = Path(str(out_stats_file) + ".txt")
                 with out_txt_file.open("w") as f:

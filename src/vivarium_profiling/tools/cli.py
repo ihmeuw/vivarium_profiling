@@ -51,7 +51,7 @@ from vivarium_profiling.tools.run_benchmark import run_benchmark_loop
 @click.option(
     "--profiler",
     type=click.Choice(["cprofile", "scalene"]),
-    default="scalene",
+    default="cprofile",
     show_default=True,
     help="Profiling backend to use.",
 )

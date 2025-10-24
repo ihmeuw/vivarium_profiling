@@ -1,9 +1,12 @@
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
 
-from vivarium_profiling.tools.run_profile import run_profile_scalene, run_profile_cprofile
+from vivarium_profiling.tools.run_profile import (
+    run_profile_cprofile,
+    run_profile_scalene,
+)
 
 
 @pytest.fixture

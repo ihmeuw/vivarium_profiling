@@ -5,6 +5,7 @@ import argparse
 import ast
 import cProfile
 import sys
+
 from scalene import scalene_profiler
 from vivarium.framework.engine import SimulationContext
 

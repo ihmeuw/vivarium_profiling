@@ -53,9 +53,11 @@ from vivarium_profiling.tools.run_benchmark import run_benchmark_loop
     type=click.Choice(["cprofile", "scalene"]),
     default="cprofile",
     show_default=True,
-    help="Profiling backend to use. cProfile provides the most detaile function-level"
-    "runtime information, while scalene provides detailed annotation of source"
-    "code that may be the source of bottlenecks.",
+    help=(
+        "Profiling backend to use. cProfile provides the most detaile function-level"
+        "runtime information, while scalene provides detailed annotation of source"
+        "code that may be the source of bottlenecks."
+    ),
 )
 @click.pass_context
 def profile_sim(

@@ -8,6 +8,7 @@ from vivarium_public_health.disease import DiseaseModel, DiseaseState, Susceptib
 CAUSE_KEY = "causes"
 DEFAULT_SIS_CONFIG = {"duration": 1, "number": 1}
 
+
 class ScalingParsingErrors(ParsingError):
     """Error raised when there are any errors parsing a scaling configuration."""
 

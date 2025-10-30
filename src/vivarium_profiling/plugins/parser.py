@@ -10,6 +10,7 @@ from vivarium_public_health.disease import (
     SusceptibleState,
 )
 
+CAUSE_KEY = "causes"
 
 class ScalingParsingErrors(ParsingError):
     """Error raised when there are any errors parsing a scaling configuration."""
@@ -30,11 +31,10 @@ class ScalingComponentParser(ComponentConfigurationParser):
     .. code-block:: yaml
 
         components:
-            diseases:
-                type: SIS_fixed_duration
-                cause: lower_respiratory_infections
+            causes:
                 number: 5
-                duration: "28"
+                cause: lower_respiratory_infections
+                duration: 28
 
     This will create 5 disease components named:
     - lower_respiratory_infections_1
@@ -66,14 +66,14 @@ class ScalingComponentParser(ComponentConfigurationParser):
         """
         components = []
 
-        if "diseases" in component_config:
-            diseases_config = component_config["diseases"]
+        if CAUSE_KEY in component_config:
+            diseases_config = component_config[CAUSE_KEY]
             self._validate_diseases_config(diseases_config)
             components += self._get_scaled_disease_components(diseases_config)
 
         # Parse standard components (i.e. not scaled components)
         standard_component_config = component_config.to_dict()
-        standard_component_config.pop("diseases", None)
+        standard_component_config.pop(CAUSE_KEY, None)
         standard_components = (
             self.process_level(standard_component_config, [])
             if standard_component_config
@@ -98,20 +98,16 @@ class ScalingComponentParser(ComponentConfigurationParser):
         """
         components = []
 
-        component_type = diseases_config.get("type")
         base_cause = diseases_config.get("cause")
         number = diseases_config.get("number", 1)
         duration = diseases_config.get("duration", "28")
 
-        if component_type == "SIS_fixed_duration":
-            for i in range(number):
-                cause_name = f"{base_cause}_{i+1}"
-                disease_component = self._create_sis_fixed_duration(
-                    cause_name, duration, base_cause
-                )
-                components.append(disease_component)
-        else:
-            raise ValueError(f"Unsupported disease type: {component_type}")
+        for i in range(number):
+            cause_name = f"{base_cause}_{i+1}"
+            disease_component = self._create_sis_fixed_duration(
+                cause_name, duration, base_cause
+            )
+            components.append(disease_component)
 
         return components
 
@@ -175,21 +171,10 @@ class ScalingComponentParser(ComponentConfigurationParser):
         error_messages = []
 
         # Check required fields
-        required_fields = ["type", "cause", "number"]
+        required_fields = [CAUSE_KEY, "number"]
         for field in required_fields:
             if field not in diseases_config_dict:
                 error_messages.append(f"Missing required field: {field}")
-
-        # Validate type
-        supported_types = ["SIS_fixed_duration"]
-        if (
-            "type" in diseases_config_dict
-            and diseases_config_dict["type"] not in supported_types
-        ):
-            error_messages.append(
-                f"Unsupported disease type: {diseases_config_dict['type']}. "
-                f"Supported types: {supported_types}"
-            )
 
         # Validate number
         if "number" in diseases_config_dict:

@@ -3,14 +3,10 @@ from layered_config_tree import LayeredConfigTree
 from vivarium import Component
 from vivarium.framework.components import ComponentConfigurationParser
 from vivarium.framework.components.parser import ParsingError
-
-from vivarium_public_health.disease import (
-    DiseaseModel,
-    DiseaseState,
-    SusceptibleState,
-)
+from vivarium_public_health.disease import DiseaseModel, DiseaseState, SusceptibleState
 
 CAUSE_KEY = "causes"
+
 
 class ScalingParsingErrors(ParsingError):
     """Error raised when there are any errors parsing a scaling configuration."""
@@ -139,6 +135,7 @@ class ScalingComponentParser(ComponentConfigurationParser):
             get_data_functions={"dwell_time": lambda _, __: duration_td},
             allow_self_transition=True,
             prevalence=f"cause.{base_cause}.prevalence",
+            birth_prevalence=f"cause.{base_cause}.birth_prevalence",
             disability_weight=f"cause.{base_cause}.disability_weight",
             excess_mortality_rate=f"cause.{base_cause}.excess_mortality_rate",
         )
@@ -171,7 +168,7 @@ class ScalingComponentParser(ComponentConfigurationParser):
         error_messages = []
 
         # Check required fields
-        required_fields = [CAUSE_KEY, "number"]
+        required_fields = ["cause", "number"]
         for field in required_fields:
             if field not in diseases_config_dict:
                 error_messages.append(f"Missing required field: {field}")
@@ -188,7 +185,9 @@ class ScalingComponentParser(ComponentConfigurationParser):
         # Validate duration if provided
         if "duration" in diseases_config_dict:
             try:
-                float(diseases_config_dict["duration"])
+                number = float(diseases_config_dict["duration"])
+                if number <= 0.0:
+                    error_messages.append("Duration must be positive")
             except (ValueError, TypeError):
                 error_messages.append("Duration must be a valid number")
 

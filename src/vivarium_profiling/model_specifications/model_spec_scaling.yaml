@@ -3,11 +3,10 @@ plugins:
         component_configuration_parser:
             controller: "vivarium_profiling.plugins.parser.ScalingComponentParser"
 components:
-    diseases:
-        type: SIS_fixed_duration
-        cause: lower_respiratory_infections
-        number: 2
-        duration: "28"
+    causes:
+        lower_respiratory_infections:
+            number: 2
+            duration: "28"
 
     vivarium_public_health:
         population:

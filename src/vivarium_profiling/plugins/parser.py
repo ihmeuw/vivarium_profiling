@@ -19,8 +19,8 @@ class ScalingComponentParser(ComponentConfigurationParser):
     """Parser for scaling component configurations.
 
     Component configuration parser that can automatically generate multiple
-    instances of components based on a scaling configuration. Currently supports
-    disease models like SIS_fixed_duration.
+    instances of components based on a scaling configuration. Currently implements
+    disease models as SIS_fixed_duration.
 
     Example configuration:
 
@@ -28,23 +28,24 @@ class ScalingComponentParser(ComponentConfigurationParser):
 
         components:
             causes:
-                number: 5
-                cause: lower_respiratory_infections
-                duration: 28
+                lower_respiratory_infections:
+                    number: 5
+                    duration: 28
+                ischemic_heart_disease:
+                    number: 3
+                    duration: 14
 
-    This will create 5 disease components named:
-    - lower_respiratory_infections_1
-    - lower_respiratory_infections_2
-    - lower_respiratory_infections_3
-    - lower_respiratory_infections_4
-    - lower_respiratory_infections_5
+    This will create disease components named:
+    - lower_respiratory_infections_1, lower_respiratory_infections_2, ..., lower_respiratory_infections_5
+    - ischemic_heart_disease_1, ischemic_heart_disease_2, ischemic_heart_disease_3
     """
 
     def parse_component_config(self, component_config: LayeredConfigTree) -> list[Component]:
         """Parses the component configuration and returns a list of components.
 
-        This method looks for a `diseases` key that contains scaling configuration
-        for disease components.
+        This method looks for a `causes` key that contains scaling configuration
+        for disease components where each cause name is a key with its own
+        scaling parameters.
 
         Parameters
         ----------
@@ -87,6 +88,7 @@ class ScalingComponentParser(ComponentConfigurationParser):
         ----------
         diseases_config
             A LayeredConfigTree defining the disease scaling configuration
+            where each cause name is a key with scaling parameters
 
         Returns
         -------
@@ -94,16 +96,19 @@ class ScalingComponentParser(ComponentConfigurationParser):
         """
         components = []
 
-        base_cause = diseases_config.get("cause")
-        number = diseases_config.get("number", 1)
-        duration = diseases_config.get("duration", "28")
+        # Iterate over each cause in the configuration
+        for cause_name, cause_config in diseases_config.items():
+            self._validate_cause_config(cause_name, cause_config)
 
-        for i in range(number):
-            cause_name = f"{base_cause}_{i+1}"
-            disease_component = self._create_sis_fixed_duration(
-                cause_name, duration, base_cause
-            )
-            components.append(disease_component)
+            number = cause_config.get("number", 1)
+            duration = cause_config.get("duration", 1)
+
+            for i in range(number):
+                suffixed_cause_name = f"{cause_name}_{i+1}"
+                disease_component = self._create_sis_fixed_duration(
+                    suffixed_cause_name, duration, cause_name
+                )
+                components.append(disease_component)
 
         return components
 
@@ -135,7 +140,6 @@ class ScalingComponentParser(ComponentConfigurationParser):
             get_data_functions={"dwell_time": lambda _, __: duration_td},
             allow_self_transition=True,
             prevalence=f"cause.{base_cause}.prevalence",
-            birth_prevalence=f"cause.{base_cause}.birth_prevalence",
             disability_weight=f"cause.{base_cause}.disability_weight",
             excess_mortality_rate=f"cause.{base_cause}.excess_mortality_rate",
         )
@@ -158,35 +162,65 @@ class ScalingComponentParser(ComponentConfigurationParser):
         ----------
         diseases_config
             A LayeredConfigTree defining the diseases scaling configuration
+            where each cause name is a key with scaling parameters
 
         Raises
         ------
         ScalingParsingErrors
             If the diseases scaling configuration is invalid
         """
-        diseases_config_dict = diseases_config.to_dict()
+        error_messages = []
+
+        # Validate each cause configuration
+        for cause_name, cause_config in diseases_config.items():
+            try:
+                self._validate_cause_config(cause_name, cause_config)
+            except ScalingParsingErrors as e:
+                error_messages.append(f"Error in cause '{cause_name}': {str(e)}")
+
+        if error_messages:
+            raise ScalingParsingErrors(error_messages)
+
+    def _validate_cause_config(
+        self, cause_name: str, cause_config: LayeredConfigTree
+    ) -> None:
+        """Validates the configuration for a single cause.
+
+        Parameters
+        ----------
+        cause_name
+            The name of the cause
+        cause_config
+            A LayeredConfigTree defining the cause scaling configuration
+
+        Raises
+        ------
+        ScalingParsingErrors
+            If the cause scaling configuration is invalid
+        """
+        cause_config_dict = cause_config.to_dict()
         error_messages = []
 
         # Check required fields
-        required_fields = ["cause", "number"]
+        required_fields = ["number"]
         for field in required_fields:
-            if field not in diseases_config_dict:
+            if field not in cause_config_dict:
                 error_messages.append(f"Missing required field: {field}")
 
         # Validate number
-        if "number" in diseases_config_dict:
+        if "number" in cause_config_dict:
             try:
-                number = int(diseases_config_dict["number"])
+                number = int(cause_config_dict["number"])
                 if number <= 0:
                     error_messages.append("Number of components must be positive")
             except (ValueError, TypeError):
                 error_messages.append("Number of components must be a valid integer")
 
         # Validate duration if provided
-        if "duration" in diseases_config_dict:
+        if "duration" in cause_config_dict:
             try:
-                number = float(diseases_config_dict["duration"])
-                if number <= 0.0:
+                duration = float(cause_config_dict["duration"])
+                if duration <= 0.0:
                     error_messages.append("Duration must be positive")
             except (ValueError, TypeError):
                 error_messages.append("Duration must be a valid number")

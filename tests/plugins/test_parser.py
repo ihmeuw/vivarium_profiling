@@ -14,7 +14,7 @@ def test_scaling_parser():
                 "number": 2,
                 "duration": "28",
             },
-            "ischemic_heart_disease": {
+            "ischemic_stroke": {
                 "number": 3,
                 "duration": "14",
             },
@@ -27,25 +27,19 @@ def test_scaling_parser():
     parser = ScalingComponentParser()
     components = parser.parse_component_config(config)
 
-    assert len(components) == 5, f"Expected 5 components, got {len(components)}"
+    assert len(components) == 5
 
     # Check that we have the right component names
     component_names = [component.name for component in components]
     expected_names = [
         "disease_model.lower_respiratory_infections_1",
         "disease_model.lower_respiratory_infections_2",
-        "disease_model.ischemic_heart_disease_1",
-        "disease_model.ischemic_heart_disease_2",
-        "disease_model.ischemic_heart_disease_3",
+        "disease_model.ischemic_stroke_1",
+        "disease_model.ischemic_stroke_2",
+        "disease_model.ischemic_stroke_3",
     ]
 
-    # Sort both lists to make comparison order-independent
-    component_names.sort()
-    expected_names.sort()
-
-    assert (
-        component_names == expected_names
-    ), f"Expected {expected_names}, got {component_names}"
+    assert component_names == expected_names
 
     # Verify that all components are DiseaseModel instances
     for component in components:
@@ -53,7 +47,7 @@ def test_scaling_parser():
 
     # Check specific mortality sources for each cause type
     lri_components = [c for c in components if "lower_respiratory_infections" in c.name]
-    ihd_components = [c for c in components if "ischemic_heart_disease" in c.name]
+    ihd_components = [c for c in components if "ischemic_stroke" in c.name]
 
     assert len(lri_components) == 2
     assert len(ihd_components) == 3
@@ -65,7 +59,4 @@ def test_scaling_parser():
         )
 
     for component in ihd_components:
-        assert (
-            component._csmr_source
-            == "cause.ischemic_heart_disease.cause_specific_mortality_rate"
-        )
+        assert component._csmr_source == "cause.ischemic_stroke.cause_specific_mortality_rate"

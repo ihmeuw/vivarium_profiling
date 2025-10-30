@@ -104,16 +104,14 @@ class ScalingComponentParser(ComponentConfigurationParser):
             duration = cause_config.get("duration", 1)
 
             for i in range(number):
-                suffixed_cause_name = f"{cause_name}_{i+1}"
-                disease_component = self._create_sis_fixed_duration(
-                    suffixed_cause_name, duration, cause_name
+                components.append(
+                    self._create_sis_fixed_duration(cause_name, duration, i + 1)
                 )
-                components.append(disease_component)
 
         return components
 
     def _create_sis_fixed_duration(
-        self, cause: str, duration: str, base_cause: str
+        self, cause_name: str, duration: str, number: int
     ) -> DiseaseModel:
         """Creates a SIS fixed duration disease model.
 
@@ -130,29 +128,30 @@ class ScalingComponentParser(ComponentConfigurationParser):
         -------
             An initialized DiseaseModel component
         """
+        suffixed_cause_name = f"{cause_name}_{number}"
         duration_td = pd.Timedelta(
             days=float(duration) // 1, hours=(float(duration) % 1) * 24.0
         )
 
-        healthy = SusceptibleState(cause, allow_self_transition=True)
+        healthy = SusceptibleState(suffixed_cause_name, allow_self_transition=True)
         infected = DiseaseState(
-            cause,
+            suffixed_cause_name,
             get_data_functions={"dwell_time": lambda _, __: duration_td},
             allow_self_transition=True,
-            prevalence=f"cause.{base_cause}.prevalence",
-            disability_weight=f"cause.{base_cause}.disability_weight",
-            excess_mortality_rate=f"cause.{base_cause}.excess_mortality_rate",
+            prevalence=f"cause.{cause_name}.prevalence",
+            disability_weight=f"cause.{cause_name}.disability_weight",
+            excess_mortality_rate=f"cause.{cause_name}.excess_mortality_rate",
         )
 
         healthy.add_rate_transition(
-            infected, transition_rate=f"cause.{base_cause}.incidence_rate"
+            infected, transition_rate=f"cause.{cause_name}.incidence_rate"
         )
         infected.add_dwell_time_transition(healthy)
 
         return DiseaseModel(
-            cause,  # This is the suffixed name for the component
+            suffixed_cause_name,  # This is the suffixed name for the component
             states=[healthy, infected],
-            cause_specific_mortality_rate=f"cause.{base_cause}.cause_specific_mortality_rate",
+            cause_specific_mortality_rate=f"cause.{cause_name}.cause_specific_mortality_rate",
         )
 
     def _validate_diseases_config(self, diseases_config: LayeredConfigTree) -> None:

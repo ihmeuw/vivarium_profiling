@@ -67,4 +67,3 @@ def test_multi_component_parser():
         assert component._csmr_source == "cause.ischemic_stroke.cause_specific_mortality_rate"
         disease_state = component.states[1]
         assert disease_state._prevalence_source == "cause.ischemic_stroke.prevalence"
-        breakpoint()

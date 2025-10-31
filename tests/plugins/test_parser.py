@@ -57,6 +57,14 @@ def test_scaling_parser():
             component._csmr_source
             == "cause.lower_respiratory_infections.cause_specific_mortality_rate"
         )
+        disease_state = component.states[1]
+        assert (
+            disease_state._prevalence_source
+            == "cause.lower_respiratory_infections.prevalence"
+        )
 
     for component in ihd_components:
         assert component._csmr_source == "cause.ischemic_stroke.cause_specific_mortality_rate"
+        disease_state = component.states[1]
+        assert disease_state._prevalence_source == "cause.ischemic_stroke.prevalence"
+        breakpoint()

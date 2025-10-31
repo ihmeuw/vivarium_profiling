@@ -1,11 +1,11 @@
 from layered_config_tree import LayeredConfigTree
 from vivarium_public_health.disease import DiseaseModel
 
-from vivarium_profiling.plugins.parser import ScalingComponentParser
+from vivarium_profiling.plugins.parser import MultiComponentParser
 
 
-def test_scaling_parser():
-    """Test the ScalingComponentParser with multiple different causes."""
+def test_multi_component_parser():
+    """Test the MultiComponentParser with multiple different causes."""
 
     # Create test configuration with multiple causes
     config_dict = {
@@ -24,7 +24,7 @@ def test_scaling_parser():
     config = LayeredConfigTree(config_dict)
 
     # Create parser and parse configuration
-    parser = ScalingComponentParser()
+    parser = MultiComponentParser()
     components = parser.parse_component_config(config)
 
     assert len(components) == 5

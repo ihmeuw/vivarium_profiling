@@ -9,18 +9,18 @@ CAUSE_KEY = "causes"
 DEFAULT_SIS_CONFIG = {"duration": 1, "number": 1}
 
 
-class ScalingParsingErrors(ParsingError):
-    """Error raised when there are any errors parsing a scaling configuration."""
+class MultiComponentParsingErrors(ParsingError):
+    """Error raised when there are any errors parsing a multi-configuration."""
 
     def __init__(self, messages: list[str]):
         super().__init__("\n - " + "\n - ".join(messages))
 
 
-class ScalingComponentParser(ComponentConfigurationParser):
-    """Parser for scaling component configurations.
+class MultiComponentParser(ComponentConfigurationParser):
+    """Parser for multi-component configurations.
 
     Component configuration parser that can automatically generate multiple
-    instances of components based on a scaling configuration. Currently implements
+    instances of components based on a multi-configuration. Currently implements
     disease models as SIS_fixed_duration.
 
     Example configuration:
@@ -44,9 +44,9 @@ class ScalingComponentParser(ComponentConfigurationParser):
     def parse_component_config(self, component_config: LayeredConfigTree) -> list[Component]:
         """Parses the component configuration and returns a list of components.
 
-        This method looks for a `causes` key that contains scaling configuration
+        This method looks for a `causes` key that contains multi-configuration
         for disease components where each cause name is a key with its own
-        scaling parameters.
+        multi-parameters.
 
         Parameters
         ----------
@@ -59,17 +59,17 @@ class ScalingComponentParser(ComponentConfigurationParser):
 
         Raises
         ------
-        ScalingParsingErrors
-            If the scaling configuration is invalid
+        MultiComponentParsingErrors
+            If the multi-configuration is invalid
         """
         components = []
 
         if CAUSE_KEY in component_config:
             causes_config = component_config[CAUSE_KEY]
             self._validate_causes_config(causes_config)
-            components += self._get_scaled_disease_components(causes_config)
+            components += self._get_multi_disease_components(causes_config)
 
-        # Parse standard components (i.e. not scaled components)
+        # Parse standard components (i.e. not multi components)
         standard_component_config = component_config.to_dict()
         standard_component_config.pop(CAUSE_KEY, None)
         standard_components = (
@@ -80,16 +80,16 @@ class ScalingComponentParser(ComponentConfigurationParser):
 
         return components + standard_components
 
-    def _get_scaled_disease_components(
+    def _get_multi_disease_components(
         self, causes_config: LayeredConfigTree
     ) -> list[Component]:
-        """Creates multiple disease components based on scaling configuration.
+        """Creates multiple disease components based on multi-configuration.
 
         Parameters
         ----------
         causes_config
-            A LayeredConfigTree defining the disease scaling configuration
-            where each cause name is a key with scaling parameters
+            A LayeredConfigTree defining the disease multi-configuration
+            where each cause name is a key with multi-parameters
 
         Returns
         -------
@@ -155,18 +155,18 @@ class ScalingComponentParser(ComponentConfigurationParser):
         )
 
     def _validate_causes_config(self, causes_config: LayeredConfigTree) -> None:
-        """Validates the diseases scaling configuration.
+        """Validates the diseases multi-configuration.
 
         Parameters
         ----------
         causes_config
-            A LayeredConfigTree defining the diseases scaling configuration
-            where each cause name is a key with scaling parameters
+            A LayeredConfigTree defining the diseases multi-configuration
+            where each cause name is a key with multi-parameters
 
         Raises
         ------
-        ScalingParsingErrors
-            If the diseases scaling configuration is invalid
+        MultiComponentParsingErrors
+            If the diseases multi-configuration is invalid
         """
         error_messages = []
 
@@ -182,7 +182,7 @@ class ScalingComponentParser(ComponentConfigurationParser):
                 )
 
         if error_messages:
-            raise ScalingParsingErrors(error_messages)
+            raise MultiComponentParsingErrors(error_messages)
 
     def _validate_cause_config(
         self, cause_name: str, cause_config: LayeredConfigTree
@@ -194,12 +194,12 @@ class ScalingComponentParser(ComponentConfigurationParser):
         cause_name
             The name of the cause
         cause_config
-            A LayeredConfigTree defining the cause scaling configuration
+            A LayeredConfigTree defining the cause multi-configuration
 
         Raises
         ------
-        ScalingParsingErrors
-            If the cause scaling configuration is invalid
+        MultiComponentParsingErrors
+            If the cause multi-configuration is invalid
         """
         cause_config_dict = cause_config.to_dict()
         error_messages = []

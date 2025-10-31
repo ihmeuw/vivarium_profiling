@@ -4,9 +4,10 @@ from vivarium import Component
 from vivarium.framework.components import ComponentConfigurationParser
 from vivarium.framework.components.parser import ParsingError
 from vivarium_public_health.disease import DiseaseModel, DiseaseState, SusceptibleState
+from vivarium_public_health.results import DiseaseObserver
 
 CAUSE_KEY = "causes"
-DEFAULT_SIS_CONFIG = {"duration": 1, "number": 1}
+DEFAULT_SIS_CONFIG = {"duration": 1, "number": 1, "observers": False}
 
 
 class MultiComponentParsingErrors(ParsingError):
@@ -21,7 +22,7 @@ class MultiComponentParser(ComponentConfigurationParser):
 
     Component configuration parser that can automatically generate multiple
     instances of components based on a multi-configuration. Currently implements
-    disease models as SIS_fixed_duration.
+    disease models as SIS_fixed_duration and optionally creates disease observers.
 
     Example configuration:
 
@@ -32,13 +33,17 @@ class MultiComponentParser(ComponentConfigurationParser):
                 lower_respiratory_infections:
                     number: 5
                     duration: 28
+                    observers: True
                 ischemic_heart_disease:
                     number: 3
                     duration: 14
+                    observers: False
 
     This will create disease components named:
     - lower_respiratory_infections_1, lower_respiratory_infections_2, ..., lower_respiratory_infections_5
     - ischemic_heart_disease_1, ischemic_heart_disease_2, ischemic_heart_disease_3
+
+    And if observers: True, it will also create corresponding DiseaseObserver components.
     """
 
     def parse_component_config(self, component_config: LayeredConfigTree) -> list[Component]:
@@ -93,7 +98,7 @@ class MultiComponentParser(ComponentConfigurationParser):
 
         Returns
         -------
-            A list of initialized disease components
+            A list of initialized disease components and optionally disease observers
         """
         components = []
 
@@ -102,11 +107,15 @@ class MultiComponentParser(ComponentConfigurationParser):
 
             number = cause_config.get("number", DEFAULT_SIS_CONFIG["number"])
             duration = cause_config.get("duration", DEFAULT_SIS_CONFIG["duration"])
+            observers = cause_config.get("observers", DEFAULT_SIS_CONFIG["observers"])
 
             for i in range(number):
                 components.append(
                     self._create_sis_fixed_duration(cause_name, duration, i + 1)
                 )
+
+                if observers:
+                    components.append(DiseaseObserver(f"{cause_name}_{i + 1}"))
 
         return components
 
@@ -221,5 +230,11 @@ class MultiComponentParser(ComponentConfigurationParser):
                     error_messages.append("Duration must be positive")
             except (ValueError, TypeError):
                 error_messages.append("Duration must be a valid number")
+
+        # Validate observers if provided
+        if "observers" in cause_config_dict:
+            observers = cause_config_dict["observers"]
+            if not isinstance(observers, bool):
+                error_messages.append("Observers must be a boolean value (True or False)")
 
         return error_messages

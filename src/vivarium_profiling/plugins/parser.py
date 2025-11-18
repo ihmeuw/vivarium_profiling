@@ -51,7 +51,7 @@ class MultiComponentParser(ComponentConfigurationParser):
 
         This method looks for a `causes` key that contains multi-configuration
         for disease components where each cause name is a key with its own
-        multi-parameters.
+        multi-parameters. We then separately parse standard (i.e. non-multi-) components.
 
         Parameters
         ----------

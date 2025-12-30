@@ -1,6 +1,9 @@
 from layered_config_tree import LayeredConfigTree
 from vivarium_public_health.disease import DiseaseModel
 from vivarium_public_health.results import DiseaseObserver
+from vivarium_public_health.results.risk import CategoricalRiskObserver
+from vivarium_public_health.risks.base_risk import Risk
+from vivarium_public_health.risks.effect import NonLogLinearRiskEffect, RiskEffect
 
 from vivarium_profiling.plugins.parser import MultiComponentParser
 
@@ -80,3 +83,82 @@ def test_multi_component_parser():
         assert component._csmr_source == "cause.ischemic_stroke.cause_specific_mortality_rate"
         disease_state = component.states[1]
         assert disease_state._prevalence_source == "cause.ischemic_stroke.prevalence"
+
+
+def test_multi_component_parser_risks():
+    """Test multi-risk configuration with per-cause effect counts and observer rules."""
+
+    config_dict = {
+        "causes": {
+            "lower_respiratory_infections": {
+                "number": 2,
+                "duration": "28",
+                "observers": False,
+            }
+        },
+        "risks": {
+            "high_systolic_blood_pressure": {
+                "distribution_type": "normal",
+                "number": 1,
+                "observers": True,  # should be skipped because continuous
+                "affected_causes": {
+                    "lower_respiratory_infections": {
+                        "effect_type": "nonloglinear",
+                        "number": 2,
+                    }
+                },
+            },
+            "unsafe_water_source": {
+                "distribution_type": "dichotomous",
+                "number": 2,
+                "observers": True,
+                "affected_causes": {
+                    "lower_respiratory_infections": {
+                        "effect_type": "loglinear",
+                        "number": 2,
+                    }
+                },
+            },
+        },
+    }
+
+    config = LayeredConfigTree(config_dict)
+
+    parser = MultiComponentParser()
+    components = parser.parse_component_config(config)
+
+    # Expected counts
+    # Causes: 2 disease models
+    # high_sbp: 1 Risk + 2 NonLogLinearRiskEffect; observers skipped
+    # unsafe_water: 2 Risk + 4 RiskEffect + 2 CategoricalRiskObserver
+    assert len(components) == 13
+
+    risks = [c for c in components if isinstance(c, Risk)]
+    effects = [c for c in components if isinstance(c, (RiskEffect, NonLogLinearRiskEffect))]
+    cat_observers = [c for c in components if isinstance(c, CategoricalRiskObserver)]
+    disease_models = [c for c in components if isinstance(c, DiseaseModel)]
+
+    assert len(disease_models) == 2
+    assert len(risks) == 3
+    assert len(effects) == 6
+    assert len(cat_observers) == 2
+
+    # Check names for effects map to the correct suffixed causes
+    effect_names = {c.name for c in effects}
+    assert {
+        "non_log_linear_risk_effect.high_systolic_blood_pressure_1_on_cause.lower_respiratory_infections_1.incidence_rate",
+        "non_log_linear_risk_effect.high_systolic_blood_pressure_1_on_cause.lower_respiratory_infections_2.incidence_rate",
+        "risk_effect.unsafe_water_source_1_on_cause.lower_respiratory_infections_1.incidence_rate",
+        "risk_effect.unsafe_water_source_1_on_cause.lower_respiratory_infections_2.incidence_rate",
+        "risk_effect.unsafe_water_source_2_on_cause.lower_respiratory_infections_1.incidence_rate",
+        "risk_effect.unsafe_water_source_2_on_cause.lower_respiratory_infections_2.incidence_rate",
+    } == effect_names
+
+    # Continuous risk observer skipped
+    assert all(
+        "high_systolic_blood_pressure" not in obs.risk for obs in cat_observers
+    )
+
+    # Categorical observers created for dichotomous risk
+    observer_risks = {obs.risk for obs in cat_observers}
+    assert observer_risks == {"unsafe_water_source_1", "unsafe_water_source_2"}

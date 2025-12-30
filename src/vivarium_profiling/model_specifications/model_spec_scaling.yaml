@@ -9,33 +9,30 @@ components:
             duration: "28"
             observers: True
 
+    risks:
+        high_systolic_blood_pressure:
+            distribution_type: normal
+            number: 2
+            observers: False  # continuous risk observers are skipped with a log
+            affected_causes:
+                lower_respiratory_infections:
+                    effect_type: nonloglinear
+                    number: 2
+
+        unsafe_water_source:
+            distribution_type: dichotomous
+            number: 2
+            observers: True
+            affected_causes:
+                lower_respiratory_infections:
+                    effect_type: loglinear
+                    number: 2
+
     vivarium_public_health:
         population:
             - BasePopulation()
             - Mortality()
             - FertilityCrudeBirthRate()
-        # risks:
-            # SBP
-            # - Risk("risk_factor.high_systolic_blood_pressure")
-            # # NOTE: SBP2-4 are manually-created copies of SBP (they are NOT in the loader)
-            # - Risk("risk_factor.high_systolic_blood_pressure_2")
-            # - Risk("risk_factor.high_systolic_blood_pressure_3")
-            # - Risk("risk_factor.high_systolic_blood_pressure_4")
-            # - NonLogLinearRiskEffect("risk_factor.high_systolic_blood_pressure", "cause.lower_respiratory_infections_1.incidence_rate")
-            # - NonLogLinearRiskEffect("risk_factor.high_systolic_blood_pressure_2", "cause.lower_respiratory_infections.incidence_rate")
-            # - NonLogLinearRiskEffect("risk_factor.high_systolic_blood_pressure_3", "cause.lower_respiratory_infections.incidence_rate")
-            # - NonLogLinearRiskEffect("risk_factor.high_systolic_blood_pressure_4", "cause.lower_respiratory_infections.incidence_rate")
-        
-            # Unsafe water source
-            # - Risk("risk_factor.unsafe_water_source")
-            # # NOTE: Unsafe water source 2-4 are manually-created copies of Unsafe water source (they are NOT in the loader)
-            # - Risk("risk_factor.unsafe_water_source_2")
-            # - Risk("risk_factor.unsafe_water_source_3")
-            # - Risk("risk_factor.unsafe_water_source_4")
-            # - RiskEffect("risk_factor.unsafe_water_source", "cause.lower_respiratory_infections_1.incidence_rate")
-            # - RiskEffect("risk_factor.unsafe_water_source_2", "cause.lower_respiratory_infections.incidence_rate")
-            # - RiskEffect("risk_factor.unsafe_water_source_3", "cause.lower_respiratory_infections.incidence_rate")
-            # - RiskEffect("risk_factor.unsafe_water_source_4", "cause.lower_respiratory_infections.incidence_rate")
         results:
             - ResultsStratifier()
             - DisabilityObserver()

@@ -1,3 +1,5 @@
+import logging
+
 import pandas as pd
 from layered_config_tree import LayeredConfigTree
 from vivarium import Component
@@ -5,9 +7,23 @@ from vivarium.framework.components import ComponentConfigurationParser
 from vivarium.framework.components.parser import ParsingError
 from vivarium_public_health.disease import DiseaseModel, DiseaseState, SusceptibleState
 from vivarium_public_health.results import DiseaseObserver
+from vivarium_public_health.results.risk import CategoricalRiskObserver
+from vivarium_public_health.risks.effect import NonLogLinearRiskEffect, RiskEffect
+from vivarium_public_health.risks.base_risk import Risk
 
 CAUSE_KEY = "causes"
+RISK_KEY = "risks"
 DEFAULT_SIS_CONFIG = {"duration": 1, "number": 1, "observers": False}
+DEFAULT_RISK_CONFIG = {
+    "number": 1,
+    "observers": False,
+    "distribution_type": None,
+    "affected_causes": {},
+}
+_CONTINUOUS_DISTRIBUTIONS = {"normal", "lognormal", "ensemble"}
+_CATEGORICAL_DISTRIBUTIONS = {"dichotomous", "ordered_polytomous", "unordered_polytomous"}
+
+LOGGER = logging.getLogger(__name__)
 
 
 class MultiComponentParsingErrors(ParsingError):
@@ -74,9 +90,16 @@ class MultiComponentParser(ComponentConfigurationParser):
             self._validate_causes_config(causes_config)
             components += self._get_multi_disease_components(causes_config)
 
+        if RISK_KEY in component_config:
+            risks_config = component_config[RISK_KEY]
+            causes_config = component_config.get(CAUSE_KEY)
+            self._validate_risks_config(risks_config, causes_config)
+            components += self._get_multi_risk_components(risks_config, causes_config)
+
         # Parse standard components (i.e. not multi components)
         standard_component_config = component_config.to_dict()
         standard_component_config.pop(CAUSE_KEY, None)
+        standard_component_config.pop(RISK_KEY, None)
         standard_components = (
             self.process_level(standard_component_config, [])
             if standard_component_config
@@ -238,3 +261,206 @@ class MultiComponentParser(ComponentConfigurationParser):
                 error_messages.append("Observers must be a boolean value (True or False)")
 
         return error_messages
+
+    def _get_multi_risk_components(
+        self, risks_config: LayeredConfigTree, causes_config: LayeredConfigTree | None
+    ) -> list[Component]:
+        components: list[Component] = []
+        cause_counts = self._get_cause_counts(causes_config)
+
+        for risk_name, risk_config in risks_config.items():
+            number = int(risk_config.get("number", DEFAULT_RISK_CONFIG["number"]))
+            distribution_type = risk_config.get(
+                "distribution_type", DEFAULT_RISK_CONFIG["distribution_type"]
+            )
+            observers = risk_config.get("observers", DEFAULT_RISK_CONFIG["observers"])
+            affected_causes = risk_config.get(
+                "affected_causes", DEFAULT_RISK_CONFIG["affected_causes"]
+            )
+
+            risk_identifier = self._get_risk_identifier(risk_name)
+            for i in range(number):
+                suffixed_risk = f"{risk_identifier}_{i + 1}"
+                components.append(Risk(suffixed_risk))
+                components.extend(
+                    self._build_risk_effects(
+                        suffixed_risk, affected_causes, cause_counts
+                    )
+                )
+
+                if observers:
+                    if self._is_continuous_distribution(distribution_type):
+                        LOGGER.info(
+                            "Skipping categorical risk observer for continuous risk '%s'",
+                            suffixed_risk,
+                        )
+                    else:
+                        components.append(
+                            CategoricalRiskObserver(
+                                self._get_risk_name_only(suffixed_risk)
+                            )
+                        )
+
+        return components
+
+    def _build_risk_effects(
+        self,
+        suffixed_risk: str,
+        affected_causes: dict,
+        cause_counts: dict[str, int],
+    ) -> list[Component]:
+        components: list[Component] = []
+        for cause_name, cause_config in affected_causes.items():
+            effect_number = int(cause_config.get("number", cause_counts.get(cause_name, 0)))
+            effect_type = self._normalize_effect_type(
+                cause_config.get("effect_type", "loglinear")
+            ) or "loglinear"
+            target_measure = cause_config.get("measure", "incidence_rate")
+
+            effect_cls = NonLogLinearRiskEffect if effect_type == "nonloglinear" else RiskEffect
+
+            for i in range(effect_number):
+                components.append(
+                    effect_cls(
+                        suffixed_risk,
+                        f"cause.{cause_name}_{i + 1}.{target_measure}",
+                    )
+                )
+
+        return components
+
+    def _validate_risks_config(
+        self, risks_config: LayeredConfigTree, causes_config: LayeredConfigTree | None
+    ) -> None:
+        error_messages = []
+        cause_counts = self._get_cause_counts(causes_config)
+
+        for risk_name, risk_config in risks_config.items():
+            risk_errors = self._validate_risk_config(risk_name, risk_config, cause_counts)
+            if risk_errors:
+                error_messages.extend(
+                    [
+                        f"Error in risk '{risk_name}': {str(risk_error)}"
+                        for risk_error in risk_errors
+                    ]
+                )
+
+        if error_messages:
+            raise MultiComponentParsingErrors(error_messages)
+
+    def _validate_risk_config(
+        self,
+        risk_name: str,
+        risk_config: LayeredConfigTree,
+        cause_counts: dict[str, int],
+    ) -> list[str]:
+        risk_config_dict = risk_config.to_dict()
+        error_messages = []
+
+        if "number" in risk_config_dict:
+            try:
+                number = int(risk_config_dict["number"])
+                if number <= 0:
+                    error_messages.append("Number of components must be positive")
+            except (ValueError, TypeError):
+                error_messages.append("Number of components must be a valid integer")
+
+        if "distribution_type" in risk_config_dict:
+            distribution_type = risk_config_dict["distribution_type"]
+            if distribution_type is not None and not isinstance(distribution_type, str):
+                error_messages.append("Distribution type must be a string if provided")
+            elif distribution_type is not None:
+                normalized = distribution_type.lower()
+                if normalized not in _CONTINUOUS_DISTRIBUTIONS | _CATEGORICAL_DISTRIBUTIONS:
+                    error_messages.append(
+                        "Distribution type must be one of "
+                        f"{_CONTINUOUS_DISTRIBUTIONS | _CATEGORICAL_DISTRIBUTIONS}"
+                    )
+
+        if "observers" in risk_config_dict:
+            observers = risk_config_dict["observers"]
+            if not isinstance(observers, bool):
+                error_messages.append("Observers must be a boolean value (True or False)")
+
+        affected_causes = risk_config_dict.get("affected_causes", {})
+        if not isinstance(affected_causes, dict):
+            error_messages.append("affected_causes must be a dictionary of cause configs")
+            return error_messages
+
+        for cause_name, cause_config in affected_causes.items():
+            if cause_name not in cause_counts:
+                error_messages.append(
+                    f"Affected cause '{cause_name}' is not defined in the causes configuration"
+                )
+                continue
+
+            if not isinstance(cause_config, dict):
+                error_messages.append(
+                    f"Configuration for affected cause '{cause_name}' must be a dictionary"
+                )
+                continue
+
+            if "number" in cause_config:
+                try:
+                    number = int(cause_config["number"])
+                    if number <= 0:
+                        error_messages.append(
+                            f"Number of affected causes for '{cause_name}' must be positive"
+                        )
+                    elif number > cause_counts[cause_name]:
+                        error_messages.append(
+                            f"Number of affected causes for '{cause_name}' exceeds available causes"
+                        )
+                except (ValueError, TypeError):
+                    error_messages.append(
+                        f"Number of affected causes for '{cause_name}' must be a valid integer"
+                    )
+
+            effect_type = cause_config.get("effect_type", "loglinear")
+            if self._normalize_effect_type(effect_type) is None:
+                error_messages.append(
+                    f"Effect type '{effect_type}' for cause '{cause_name}' is not supported"
+                )
+
+            if "measure" in cause_config and not isinstance(cause_config["measure"], str):
+                error_messages.append(
+                    f"Measure for affected cause '{cause_name}' must be a string if provided"
+                )
+
+        return error_messages
+
+    @staticmethod
+    def _get_cause_counts(causes_config: LayeredConfigTree | None) -> dict[str, int]:
+        if not causes_config:
+            return {}
+        return {
+            cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
+            for cause_name, cause_config in causes_config.items()
+        }
+
+    @staticmethod
+    def _get_risk_identifier(risk_name: str) -> str:
+        return risk_name if "." in risk_name else f"risk_factor.{risk_name}"
+
+    @staticmethod
+    def _get_risk_name_only(risk_identifier: str) -> str:
+        return risk_identifier.split(".", maxsplit=1)[-1]
+
+    @staticmethod
+    def _normalize_effect_type(effect_type: str | None) -> str | None:
+        if effect_type is None:
+            return "loglinear"
+        normalized = (
+            effect_type.replace("-", "").replace("_", "").replace(" ", "").lower()
+        )
+        if normalized in {"loglinear"}:
+            return "loglinear"
+        if normalized in {"nonloglinear"}:
+            return "nonloglinear"
+        return None
+
+    @staticmethod
+    def _is_continuous_distribution(distribution_type: str | None) -> bool:
+        if distribution_type is None:
+            return False
+        return distribution_type.lower() in _CONTINUOUS_DISTRIBUTIONS

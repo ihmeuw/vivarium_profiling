@@ -85,18 +85,7 @@ class MultiComponentParser(ComponentConfigurationParser):
         """
         components = []
 
-        if CAUSE_KEY in component_config:
-            causes_config = component_config[CAUSE_KEY]
-            self._validate_causes_config(causes_config)
-            components += self._get_multi_disease_components(causes_config)
-
-        if RISK_KEY in component_config:
-            risks_config = component_config[RISK_KEY]
-            causes_config = component_config.get(CAUSE_KEY)
-            self._validate_risks_config(risks_config, causes_config)
-            components += self._get_multi_risk_components(risks_config, causes_config)
-
-        # Parse standard components (i.e. not multi components)
+        # Parse standard components first so we can extract disease models for validation
         standard_component_config = component_config.to_dict()
         standard_component_config.pop(CAUSE_KEY, None)
         standard_component_config.pop(RISK_KEY, None)
@@ -105,8 +94,25 @@ class MultiComponentParser(ComponentConfigurationParser):
             if standard_component_config
             else []
         )
+        components += standard_components
 
-        return components + standard_components
+        # Extract normally-defined disease causes
+        normally_defined_causes = self._extract_disease_causes(standard_components)
+
+        if CAUSE_KEY in component_config:
+            causes_config = component_config[CAUSE_KEY]
+            self._validate_causes_config(causes_config)
+            components += self._get_multi_disease_components(causes_config)
+
+        if RISK_KEY in component_config:
+            risks_config = component_config[RISK_KEY]
+            causes_config = component_config.get(CAUSE_KEY)
+            self._validate_risks_config(risks_config, causes_config, normally_defined_causes)
+            components += self._get_multi_risk_components(
+                risks_config, causes_config, normally_defined_causes
+            )
+
+        return components
 
     def _get_multi_disease_components(
         self, causes_config: LayeredConfigTree
@@ -263,10 +269,13 @@ class MultiComponentParser(ComponentConfigurationParser):
         return error_messages
 
     def _get_multi_risk_components(
-        self, risks_config: LayeredConfigTree, causes_config: LayeredConfigTree | None
+        self,
+        risks_config: LayeredConfigTree,
+        causes_config: LayeredConfigTree | None,
+        normally_defined_causes: set[str],
     ) -> list[Component]:
         components: list[Component] = []
-        cause_counts = self._get_cause_counts(causes_config)
+        cause_counts = self._get_cause_counts(causes_config, normally_defined_causes)
 
         for risk_name, risk_config in risks_config.items():
             number = int(risk_config.get("number", DEFAULT_RISK_CONFIG["number"]))
@@ -311,7 +320,7 @@ class MultiComponentParser(ComponentConfigurationParser):
     ) -> list[Component]:
         components: list[Component] = []
         for cause_name, cause_config in affected_causes.items():
-            effect_number = int(cause_config.get("number", cause_counts.get(cause_name, 0)))
+            effect_number = int(cause_config.get("number", cause_counts.get(cause_name, 1)))
             effect_type = self._normalize_effect_type(
                 cause_config.get("effect_type", "loglinear")
             ) or "loglinear"
@@ -330,10 +339,13 @@ class MultiComponentParser(ComponentConfigurationParser):
         return components
 
     def _validate_risks_config(
-        self, risks_config: LayeredConfigTree, causes_config: LayeredConfigTree | None
+        self,
+        risks_config: LayeredConfigTree,
+        causes_config: LayeredConfigTree | None,
+        normally_defined_causes: set[str],
     ) -> None:
         error_messages = []
-        cause_counts = self._get_cause_counts(causes_config)
+        cause_counts = self._get_cause_counts(causes_config, normally_defined_causes)
 
         for risk_name, risk_config in risks_config.items():
             risk_errors = self._validate_risk_config(risk_name, risk_config, cause_counts)
@@ -390,9 +402,12 @@ class MultiComponentParser(ComponentConfigurationParser):
         for cause_name, cause_config in affected_causes.items():
             if cause_name not in cause_counts:
                 error_messages.append(
-                    f"Affected cause '{cause_name}' is not defined in the causes configuration"
+                    f"Affected cause '{cause_name}' is not defined. "
+                    f"Define it either in the 'causes' multi-config block or as a standard component."
                 )
                 continue
+            
+            cause_count = cause_counts[cause_name]
 
             if not isinstance(cause_config, dict):
                 error_messages.append(
@@ -407,7 +422,7 @@ class MultiComponentParser(ComponentConfigurationParser):
                         error_messages.append(
                             f"Number of affected causes for '{cause_name}' must be positive"
                         )
-                    elif number > cause_counts[cause_name]:
+                    elif number > cause_count:
                         error_messages.append(
                             f"Number of affected causes for '{cause_name}' exceeds available causes"
                         )
@@ -430,13 +445,37 @@ class MultiComponentParser(ComponentConfigurationParser):
         return error_messages
 
     @staticmethod
-    def _get_cause_counts(causes_config: LayeredConfigTree | None) -> dict[str, int]:
-        if not causes_config:
-            return {}
-        return {
-            cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
-            for cause_name, cause_config in causes_config.items()
-        }
+    def _get_cause_counts(
+        causes_config: LayeredConfigTree | None, normally_defined_causes: set[str]
+    ) -> dict[str, int]:
+        """Get counts for all causes (multi-config and normally-defined).
+        
+        Parameters
+        ----------
+        causes_config
+            Multi-config causes from the 'causes' key
+        normally_defined_causes
+            Set of cause names from standard component definitions
+            
+        Returns
+        -------
+            Dictionary mapping cause names to their instance counts
+        """
+        cause_counts = {}
+        
+        # Add multi-config causes with their specified counts
+        if causes_config:
+            cause_counts.update({
+                cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
+                for cause_name, cause_config in causes_config.items()
+            })
+        
+        # Add normally-defined causes with count = 1
+        for cause_name in normally_defined_causes:
+            if cause_name not in cause_counts:
+                cause_counts[cause_name] = 1
+        
+        return cause_counts
 
     @staticmethod
     def _get_risk_identifier(risk_name: str) -> str:
@@ -458,6 +497,33 @@ class MultiComponentParser(ComponentConfigurationParser):
         if normalized in {"nonloglinear"}:
             return "nonloglinear"
         return None
+
+    @staticmethod
+    def _extract_disease_causes(components: list[Component]) -> set[str]:
+        """Extract disease/cause names from DiseaseModel components.
+        
+        Parameters
+        ----------
+        components
+            List of parsed components
+            
+        Returns
+        -------
+            Set of cause names found in DiseaseModel components
+        """
+        from vivarium_public_health.disease import DiseaseModel
+        
+        causes = set()
+        for component in components:
+            if isinstance(component, DiseaseModel):
+                # Extract cause name from the component's state_column
+                # which is in format like "lower_respiratory_infections" or "lower_respiratory_infections_1"
+                cause_name = component.state_column
+                # Remove numeric suffix if present
+                if "_" in cause_name and cause_name.rsplit("_", 1)[-1].isdigit():
+                    cause_name = cause_name.rsplit("_", 1)[0]
+                causes.add(cause_name)
+        return causes
 
     @staticmethod
     def _is_continuous_distribution(distribution_type: str | None) -> bool:

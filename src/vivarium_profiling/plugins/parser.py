@@ -97,7 +97,7 @@ class MultiComponentParser(ComponentConfigurationParser):
         components += standard_components
 
         # Extract normally-defined disease causes
-        normally_defined_causes = self._extract_disease_causes(standard_components)
+        standard_causes = self._extract_disease_causes(standard_components)
 
         if CAUSE_KEY in component_config:
             causes_config = component_config[CAUSE_KEY]
@@ -107,9 +107,9 @@ class MultiComponentParser(ComponentConfigurationParser):
         if RISK_KEY in component_config:
             risks_config = component_config[RISK_KEY]
             causes_config = component_config.get(CAUSE_KEY)
-            self._validate_risks_config(risks_config, causes_config, normally_defined_causes)
+            self._validate_risks_config(risks_config, causes_config, standard_causes)
             components += self._get_multi_risk_components(
-                risks_config, causes_config, normally_defined_causes
+                risks_config, causes_config, standard_causes
             )
 
         return components
@@ -272,10 +272,10 @@ class MultiComponentParser(ComponentConfigurationParser):
         self,
         risks_config: LayeredConfigTree,
         causes_config: LayeredConfigTree | None,
-        normally_defined_causes: set[str],
+        standard_causes: set[str],
     ) -> list[Component]:
         components: list[Component] = []
-        cause_counts = self._get_cause_counts(causes_config, normally_defined_causes)
+        cause_counts = self._get_cause_counts(causes_config, standard_causes)
 
         for risk_name, risk_config in risks_config.items():
             number = int(risk_config.get("number", DEFAULT_RISK_CONFIG["number"]))
@@ -342,10 +342,10 @@ class MultiComponentParser(ComponentConfigurationParser):
         self,
         risks_config: LayeredConfigTree,
         causes_config: LayeredConfigTree | None,
-        normally_defined_causes: set[str],
+        standard_causes: set[str],
     ) -> None:
         error_messages = []
-        cause_counts = self._get_cause_counts(causes_config, normally_defined_causes)
+        cause_counts = self._get_cause_counts(causes_config, standard_causes)
 
         for risk_name, risk_config in risks_config.items():
             risk_errors = self._validate_risk_config(risk_name, risk_config, cause_counts)
@@ -446,7 +446,7 @@ class MultiComponentParser(ComponentConfigurationParser):
 
     @staticmethod
     def _get_cause_counts(
-        causes_config: LayeredConfigTree | None, normally_defined_causes: set[str]
+        causes_config: LayeredConfigTree | None, standard_causes: set[str]
     ) -> dict[str, int]:
         """Get counts for all causes (multi-config and normally-defined).
         
@@ -454,7 +454,7 @@ class MultiComponentParser(ComponentConfigurationParser):
         ----------
         causes_config
             Multi-config causes from the 'causes' key
-        normally_defined_causes
+        standard_causes
             Set of cause names from standard component definitions
             
         Returns
@@ -471,7 +471,7 @@ class MultiComponentParser(ComponentConfigurationParser):
             })
         
         # Add normally-defined causes with count = 1
-        for cause_name in normally_defined_causes:
+        for cause_name in standard_causes:
             if cause_name not in cause_counts:
                 cause_counts[cause_name] = 1
         

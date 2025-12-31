@@ -1,4 +1,4 @@
-import logging
+from loguru import logger
 
 import pandas as pd
 from layered_config_tree import LayeredConfigTree
@@ -22,8 +22,6 @@ DEFAULT_RISK_CONFIG = {
 }
 _CONTINUOUS_DISTRIBUTIONS = {"normal", "lognormal", "ensemble"}
 _CATEGORICAL_DISTRIBUTIONS = {"dichotomous", "ordered_polytomous", "unordered_polytomous"}
-
-LOGGER = logging.getLogger(__name__)
 
 
 class MultiComponentParsingErrors(ParsingError):
@@ -299,7 +297,7 @@ class MultiComponentParser(ComponentConfigurationParser):
 
                 if observers:
                     if self._is_continuous_distribution(distribution_type):
-                        LOGGER.info(
+                        logger.info(
                             "Skipping categorical risk observer for continuous risk '%s'",
                             suffixed_risk,
                         )

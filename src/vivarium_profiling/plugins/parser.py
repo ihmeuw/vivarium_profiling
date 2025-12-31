@@ -91,11 +91,13 @@ class MultiComponentParser(ComponentConfigurationParser):
         components += standard_components
 
         # Extract normally-defined disease causes
-        standard_causes = self._extract_disease_causes(standard_components)
+        standard_causes = [
+            cause.name for cause in standard_components if isinstance(cause, DiseaseModel)
+        ]
 
         if CAUSE_KEY in component_config:
             causes_config = component_config[CAUSE_KEY]
-            self._validate_causes_config(causes_config)
+            self._validate_causes_config(causes_config, standard_causes)
             components += self._get_multi_disease_components(causes_config)
 
         if RISK_KEY in component_config:
@@ -186,7 +188,9 @@ class MultiComponentParser(ComponentConfigurationParser):
             cause_specific_mortality_rate=f"cause.{cause_name}.cause_specific_mortality_rate",
         )
 
-    def _validate_causes_config(self, causes_config: LayeredConfigTree) -> None:
+    def _validate_causes_config(
+        self, causes_config: LayeredConfigTree, standard_causes: set[str]
+    ) -> None:
         """Validates the diseases multi-configuration.
 
         Parameters
@@ -204,6 +208,11 @@ class MultiComponentParser(ComponentConfigurationParser):
 
         # Validate each cause configuration
         for cause_name, cause_config in causes_config.items():
+            if cause_name in standard_causes:
+                error_messages.extend(
+                    "Please do not define the same cause in both 'causes' multi-config and as a standard component."
+                )
+
             cause_errors = self._validate_cause_config(cause_name, cause_config)
             if cause_errors:
                 error_messages.extend(
@@ -212,7 +221,6 @@ class MultiComponentParser(ComponentConfigurationParser):
                         for cause_error in cause_errors
                     ]
                 )
-
         if error_messages:
             raise MultiComponentParsingErrors(error_messages)
 
@@ -283,7 +291,9 @@ class MultiComponentParser(ComponentConfigurationParser):
                 suffixed_entity_string = f"risk_factor.{suffixed_risk_name}"
                 components.append(Risk(suffixed_entity_string))
                 components.extend(
-                    self._build_risk_effects(suffixed_entity_string, affected_causes, cause_counts)
+                    self._build_risk_effects(
+                        suffixed_entity_string, affected_causes, cause_counts
+                    )
                 )
 
                 if observers:

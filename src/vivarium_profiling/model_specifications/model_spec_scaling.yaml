@@ -11,16 +11,14 @@ components:
 
     risks:
         high_systolic_blood_pressure:
-            distribution_type: normal
             number: 2
-            observers: False  # continuous risk observers are skipped with a log
+            observers: False  # Don't include observers for continuous risks
             affected_causes:
                 lower_respiratory_infections:
                     effect_type: nonloglinear
                     number: 2
 
         unsafe_water_source:
-            distribution_type: dichotomous
             number: 2
             observers: True
             affected_causes:

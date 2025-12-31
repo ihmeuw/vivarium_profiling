@@ -98,9 +98,8 @@ def test_multi_component_parser_risks():
         },
         "risks": {
             "high_systolic_blood_pressure": {
-                "distribution_type": "normal",
                 "number": 1,
-                "observers": True,  # should be skipped because continuous
+                "observers": False, #Continuous risk
                 "affected_causes": {
                     "lower_respiratory_infections": {
                         "effect_type": "nonloglinear",
@@ -109,7 +108,6 @@ def test_multi_component_parser_risks():
                 },
             },
             "unsafe_water_source": {
-                "distribution_type": "dichotomous",
                 "number": 2,
                 "observers": True,
                 "affected_causes": {
@@ -175,7 +173,6 @@ def test_risk_affects_normally_defined_cause():
     config_dict = {
         "risks": {
             "high_systolic_blood_pressure": {
-                "distribution_type": "normal",
                 "number": 1,
                 "observers": False,
                 "affected_causes": {
@@ -262,7 +259,6 @@ def test_risk_error_when_affected_cause_number_exceeds_available():
         },
         "risks": {
             "high_systolic_blood_pressure": {
-                "distribution_type": "normal",
                 "number": 1,
                 "observers": False,
                 "affected_causes": {
@@ -299,7 +295,6 @@ def test_risk_error_when_affected_cause_undefined():
         },
         "risks": {
             "high_systolic_blood_pressure": {
-                "distribution_type": "normal",
                 "number": 1,
                 "observers": False,
                 "affected_causes": {

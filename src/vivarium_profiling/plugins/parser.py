@@ -16,11 +16,8 @@ DEFAULT_SIS_CONFIG = {"duration": 1, "number": 1, "observers": False}
 DEFAULT_RISK_CONFIG = {
     "number": 1,
     "observers": False,
-    "distribution_type": None,
     "affected_causes": {},
 }
-_CONTINUOUS_DISTRIBUTIONS = {"normal", "lognormal", "ensemble"}
-_CATEGORICAL_DISTRIBUTIONS = {"dichotomous", "ordered_polytomous", "unordered_polytomous"}
 
 
 class MultiComponentParsingErrors(ParsingError):
@@ -293,15 +290,11 @@ class MultiComponentParser(ComponentConfigurationParser):
                 )
 
                 if observers:
-                    if self._is_continuous_distribution(distribution_type):
-                        logger.info(
-                            "Skipping categorical risk observer for continuous risk '%s'",
-                            suffixed_risk,
-                        )
-                    else:
-                        components.append(
-                            CategoricalRiskObserver(self._get_risk_name_only(suffixed_risk))
-                        )
+                    # Unfortunately, it is problematic to try to determine in advance
+                    # whether a risk is continuous or categorical without instantiating
+                    # the Risk component first. So we always try to add a CategoricalRiskObserver.
+                    # Users must remember to not add observers for continuous risks.
+                    components.append(CategoricalRiskObserver(suffixed_risk_name))
 
         return components
 
@@ -372,18 +365,6 @@ class MultiComponentParser(ComponentConfigurationParser):
                     error_messages.append("Number of components must be positive")
             except (ValueError, TypeError):
                 error_messages.append("Number of components must be a valid integer")
-
-        if "distribution_type" in risk_config_dict:
-            distribution_type = risk_config_dict["distribution_type"]
-            if distribution_type is not None and not isinstance(distribution_type, str):
-                error_messages.append("Distribution type must be a string if provided")
-            elif distribution_type is not None:
-                normalized = distribution_type.lower()
-                if normalized not in _CONTINUOUS_DISTRIBUTIONS | _CATEGORICAL_DISTRIBUTIONS:
-                    error_messages.append(
-                        "Distribution type must be one of "
-                        f"{_CONTINUOUS_DISTRIBUTIONS | _CATEGORICAL_DISTRIBUTIONS}"
-                    )
 
         if "observers" in risk_config_dict:
             observers = risk_config_dict["observers"]
@@ -520,9 +501,3 @@ class MultiComponentParser(ComponentConfigurationParser):
                     cause_name = cause_name.rsplit("_", 1)[0]
                 causes.add(cause_name)
         return causes
-
-    @staticmethod
-    def _is_continuous_distribution(distribution_type: str | None) -> bool:
-        if distribution_type is None:
-            return False
-        return distribution_type.lower() in _CONTINUOUS_DISTRIBUTIONS

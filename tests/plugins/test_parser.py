@@ -241,7 +241,7 @@ def test_risk_error_when_affected_cause_number_exceeds_available():
 
 def test_risk_error_when_affected_cause_undefined():
     """Test validation error when affected cause doesn't exist anywhere."""
-    from vivarium_profiling.plugins.parser import MultiComponentParsingErrors
+
 
     config_dict = {
         "causes": {
@@ -268,8 +268,9 @@ def test_risk_error_when_affected_cause_undefined():
     config = LayeredConfigTree(config_dict)
     parser = MultiComponentParser()
 
-    # Should raise validation error for undefined cause
-    try:
+    with pytest.raises(MultiComponentParsingErrors, match="nonexistent_cause.*is not defined"):
+        parser.parse_component_config(config)
+
         parser.parse_component_config(config)
         assert False, "Should have raised MultiComponentParsingErrors"
     except MultiComponentParsingErrors as e:

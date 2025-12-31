@@ -117,10 +117,7 @@ class MultiComponentParser(ComponentConfigurationParser):
 
         return components
 
-    def _validate_causes_config(
-        self,
-        causes_config: LayeredConfigTree,
-    ) -> None:
+    def _validate_causes_config(self, causes_config: LayeredConfigTree) -> None:
         """Validates the diseases multi-configuration.
 
         Parameters

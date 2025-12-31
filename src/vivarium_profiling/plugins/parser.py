@@ -91,9 +91,11 @@ class MultiComponentParser(ComponentConfigurationParser):
         components += standard_components
 
         # Extract normally-defined disease causes
-        standard_causes = [
-            cause.name for cause in standard_components if isinstance(cause, DiseaseModel)
-        ]
+        standard_causes = {
+            cause.name.split(".")[-1]
+            for cause in standard_components
+            if isinstance(cause, DiseaseModel)
+        }
 
         if CAUSE_KEY in component_config:
             causes_config = component_config[CAUSE_KEY]
@@ -210,7 +212,9 @@ class MultiComponentParser(ComponentConfigurationParser):
         for cause_name, cause_config in causes_config.items():
             if cause_name in standard_causes:
                 error_messages.extend(
-                    "Please do not define the same cause in both 'causes' multi-config and as a standard component."
+                    [
+                        "Please do not define the same cause in both 'causes' multi-config and as a standard component."
+                    ]
                 )
 
             cause_errors = self._validate_cause_config(cause_name, cause_config)
@@ -277,7 +281,7 @@ class MultiComponentParser(ComponentConfigurationParser):
         standard_causes: set[str],
     ) -> list[Component]:
         components: list[Component] = []
-        cause_counts = self._get_cause_counts(causes_config, standard_causes)
+        cause_counts = self._get_cause_counts(causes_config)
 
         for risk_name, risk_config in risks_config.items():
             number = int(risk_config.get("number", DEFAULT_RISK_CONFIG["number"]))
@@ -292,7 +296,7 @@ class MultiComponentParser(ComponentConfigurationParser):
                 components.append(Risk(suffixed_entity_string))
                 components.extend(
                     self._build_risk_effects(
-                        suffixed_entity_string, affected_causes, cause_counts
+                        suffixed_entity_string, affected_causes, cause_counts, standard_causes
                     )
                 )
 
@@ -310,24 +314,32 @@ class MultiComponentParser(ComponentConfigurationParser):
         suffixed_entity_string: str,
         affected_causes: dict,
         cause_counts: dict[str, int],
+        standard_causes: set[str],
     ) -> list[Component]:
         components: list[Component] = []
         for cause_name, cause_config in affected_causes.items():
-            effect_number = int(cause_config.get("number", cause_counts.get(cause_name, 1)))
             effect_type = cause_config.get("effect_type", "loglinear")
             target_measure = cause_config.get("measure", "incidence_rate")
 
             effect_cls = (
                 NonLogLinearRiskEffect if effect_type == "nonloglinear" else RiskEffect
             )
-
-            for i in range(effect_number):
+            if cause_name in standard_causes:
+                # Target the normally-defined cause
                 components.append(
                     effect_cls(
                         suffixed_entity_string,
-                        f"cause.{cause_name}_{i + 1}.{target_measure}",
+                        f"cause.{cause_name}.{target_measure}",
                     )
                 )
+            else:
+                for i in range(cause_counts[cause_name]):
+                    components.append(
+                        effect_cls(
+                            suffixed_entity_string,
+                            f"cause.{cause_name}_{i + 1}.{target_measure}",
+                        )
+                    )
 
         return components
 
@@ -338,10 +350,12 @@ class MultiComponentParser(ComponentConfigurationParser):
         standard_causes: set[str],
     ) -> None:
         error_messages = []
-        cause_counts = self._get_cause_counts(causes_config, standard_causes)
+        cause_counts = self._get_cause_counts(causes_config)
 
         for risk_name, risk_config in risks_config.items():
-            risk_errors = self._validate_risk_config(risk_name, risk_config, cause_counts)
+            risk_errors = self._validate_risk_config(
+                risk_name, risk_config, cause_counts, standard_causes
+            )
             if risk_errors:
                 error_messages.extend(
                     [
@@ -358,6 +372,7 @@ class MultiComponentParser(ComponentConfigurationParser):
         risk_name: str,
         risk_config: LayeredConfigTree,
         cause_counts: dict[str, int],
+        standard_causes: set[str],
     ) -> list[str]:
         risk_config_dict = risk_config.to_dict()
         error_messages = []
@@ -381,14 +396,15 @@ class MultiComponentParser(ComponentConfigurationParser):
             return error_messages
 
         for cause_name, cause_config in affected_causes.items():
-            if cause_name not in cause_counts:
+            if cause_name not in (cause_counts.keys() | standard_causes):
                 error_messages.append(
                     f"Affected cause '{cause_name}' is not defined. "
                     f"Define it either in the 'causes' multi-config block or as a standard component."
                 )
                 continue
 
-            cause_count = cause_counts[cause_name]
+            # Assume just one cause if not in multi-config
+            cause_count = cause_counts.get(cause_name, 1)
 
             if not isinstance(cause_config, dict):
                 error_messages.append(
@@ -412,12 +428,6 @@ class MultiComponentParser(ComponentConfigurationParser):
                         f"Number of affected causes for '{cause_name}' must be a valid integer"
                     )
 
-            effect_type = cause_config.get("effect_type", "loglinear")
-            if self._normalize_effect_type(effect_type) is None:
-                error_messages.append(
-                    f"Effect type '{effect_type}' for cause '{cause_name}' is not supported"
-                )
-
             if "measure" in cause_config and not isinstance(cause_config["measure"], str):
                 error_messages.append(
                     f"Measure for affected cause '{cause_name}' must be a string if provided"
@@ -426,9 +436,7 @@ class MultiComponentParser(ComponentConfigurationParser):
         return error_messages
 
     @staticmethod
-    def _get_cause_counts(
-        causes_config: LayeredConfigTree | None, standard_causes: set[str]
-    ) -> dict[str, int]:
+    def _get_cause_counts(causes_config: LayeredConfigTree | None) -> dict[str, int]:
         """Get counts for all causes (multi-config and normally-defined).
 
         Parameters
@@ -442,19 +450,12 @@ class MultiComponentParser(ComponentConfigurationParser):
         -------
             Dictionary mapping cause names to their instance counts
         """
-        cause_counts = {}
 
-        # Add multi-config causes with their specified counts
-        if causes_config:
-            cause_counts.update(
-                {
-                    cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
-                    for cause_name, cause_config in causes_config.items()
-                }
-            )
-
-        # Add normally-defined causes with count = 1
-        for cause_name in standard_causes:
-            cause_counts[cause_name] = 1
-
-        return cause_counts
+        return (
+            {
+                cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
+                for cause_name, cause_config in causes_config.items()
+            }
+            if causes_config
+            else {}
+        )

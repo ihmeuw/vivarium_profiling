@@ -155,9 +155,7 @@ def test_multi_component_parser_risks():
     } == effect_names
 
     # Continuous risk observer skipped
-    assert all(
-        "high_systolic_blood_pressure" not in obs.risk for obs in cat_observers
-    )
+    assert all("high_systolic_blood_pressure" not in obs.risk for obs in cat_observers)
 
     # Categorical observers created for dichotomous risk
     observer_risks = {obs.risk for obs in cat_observers}
@@ -166,7 +164,11 @@ def test_multi_component_parser_risks():
 
 def test_risk_affects_normally_defined_cause():
     """Test that risks can affect causes defined normally (not via causes key)."""
-    from vivarium_public_health.disease import DiseaseModel, DiseaseState, SusceptibleState
+    from vivarium_public_health.disease import (
+        DiseaseModel,
+        DiseaseState,
+        SusceptibleState,
+    )
 
     # Create a config with a normally-defined DiseaseModel and risks that affect it
     # We'll create the DiseaseModel programmatically and add it to the parser
@@ -197,49 +199,52 @@ def test_risk_affects_normally_defined_cause():
     config = LayeredConfigTree(config_dict)
 
     parser = MultiComponentParser()
-    
+
     # Manually inject the disease model as if it were parsed from standard components
     # by overriding process_level to return our mock component
     original_process_level = parser.process_level
+
     def mock_process_level(config, prefix):
         if not config:
             return []
         # Return empty for risks-related processing
         return []
-    
+
     parser.process_level = mock_process_level
-    
+
     # Parse with the mock - this won't work as expected, so let's try a different approach
     # Instead, let's just test that the validation accepts a normally-defined cause
     # by manually calling the validation with the disease model already extracted
-    
+
     # Actually, let's verify validation works correctly
     normally_defined_causes = {"lower_respiratory_infections"}
     risks_config = config["risks"]
-    
+
     # This should not raise an error
     try:
         parser._validate_risks_config(risks_config, None, normally_defined_causes)
     except Exception as e:
         assert False, f"Validation should pass but raised: {e}"
-    
+
     # And verify building effects works
     cause_counts = parser._get_cause_counts(None, normally_defined_causes)
     assert cause_counts == {"lower_respiratory_infections": 1}
-    
+
     risk_config = risks_config["high_systolic_blood_pressure"]
     affected_causes = risk_config["affected_causes"]
-    
+
     effects = parser._build_risk_effects(
         "risk_factor.high_systolic_blood_pressure_1",
         affected_causes,
         cause_counts,
     )
-    
+
     assert len(effects) == 1
     effect = effects[0]
-    assert effect.name == "non_log_linear_risk_effect.high_systolic_blood_pressure_1_on_cause.lower_respiratory_infections_1.incidence_rate"
-
+    assert (
+        effect.name
+        == "non_log_linear_risk_effect.high_systolic_blood_pressure_1_on_cause.lower_respiratory_infections_1.incidence_rate"
+    )
 
 
 def test_risk_error_when_affected_cause_number_exceeds_available():
@@ -317,4 +322,3 @@ def test_risk_error_when_affected_cause_undefined():
     except MultiComponentParsingErrors as e:
         assert "nonexistent_cause" in str(e)
         assert "is not defined" in str(e)
-

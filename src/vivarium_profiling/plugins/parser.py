@@ -1,15 +1,14 @@
-from loguru import logger
-
 import pandas as pd
 from layered_config_tree import LayeredConfigTree
+from loguru import logger
 from vivarium import Component
 from vivarium.framework.components import ComponentConfigurationParser
 from vivarium.framework.components.parser import ParsingError
 from vivarium_public_health.disease import DiseaseModel, DiseaseState, SusceptibleState
 from vivarium_public_health.results import DiseaseObserver
 from vivarium_public_health.results.risk import CategoricalRiskObserver
-from vivarium_public_health.risks.effect import NonLogLinearRiskEffect, RiskEffect
 from vivarium_public_health.risks.base_risk import Risk
+from vivarium_public_health.risks.effect import NonLogLinearRiskEffect, RiskEffect
 
 CAUSE_KEY = "causes"
 RISK_KEY = "risks"
@@ -290,9 +289,7 @@ class MultiComponentParser(ComponentConfigurationParser):
                 suffixed_risk = f"{risk_identifier}_{i + 1}"
                 components.append(Risk(suffixed_risk))
                 components.extend(
-                    self._build_risk_effects(
-                        suffixed_risk, affected_causes, cause_counts
-                    )
+                    self._build_risk_effects(suffixed_risk, affected_causes, cause_counts)
                 )
 
                 if observers:
@@ -303,9 +300,7 @@ class MultiComponentParser(ComponentConfigurationParser):
                         )
                     else:
                         components.append(
-                            CategoricalRiskObserver(
-                                self._get_risk_name_only(suffixed_risk)
-                            )
+                            CategoricalRiskObserver(self._get_risk_name_only(suffixed_risk))
                         )
 
         return components
@@ -319,12 +314,15 @@ class MultiComponentParser(ComponentConfigurationParser):
         components: list[Component] = []
         for cause_name, cause_config in affected_causes.items():
             effect_number = int(cause_config.get("number", cause_counts.get(cause_name, 1)))
-            effect_type = self._normalize_effect_type(
-                cause_config.get("effect_type", "loglinear")
-            ) or "loglinear"
+            effect_type = (
+                self._normalize_effect_type(cause_config.get("effect_type", "loglinear"))
+                or "loglinear"
+            )
             target_measure = cause_config.get("measure", "incidence_rate")
 
-            effect_cls = NonLogLinearRiskEffect if effect_type == "nonloglinear" else RiskEffect
+            effect_cls = (
+                NonLogLinearRiskEffect if effect_type == "nonloglinear" else RiskEffect
+            )
 
             for i in range(effect_number):
                 components.append(
@@ -404,7 +402,7 @@ class MultiComponentParser(ComponentConfigurationParser):
                     f"Define it either in the 'causes' multi-config block or as a standard component."
                 )
                 continue
-            
+
             cause_count = cause_counts[cause_name]
 
             if not isinstance(cause_config, dict):
@@ -447,32 +445,34 @@ class MultiComponentParser(ComponentConfigurationParser):
         causes_config: LayeredConfigTree | None, standard_causes: set[str]
     ) -> dict[str, int]:
         """Get counts for all causes (multi-config and normally-defined).
-        
+
         Parameters
         ----------
         causes_config
             Multi-config causes from the 'causes' key
         standard_causes
             Set of cause names from standard component definitions
-            
+
         Returns
         -------
             Dictionary mapping cause names to their instance counts
         """
         cause_counts = {}
-        
+
         # Add multi-config causes with their specified counts
         if causes_config:
-            cause_counts.update({
-                cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
-                for cause_name, cause_config in causes_config.items()
-            })
-        
+            cause_counts.update(
+                {
+                    cause_name: int(cause_config.get("number", DEFAULT_SIS_CONFIG["number"]))
+                    for cause_name, cause_config in causes_config.items()
+                }
+            )
+
         # Add normally-defined causes with count = 1
         for cause_name in standard_causes:
             if cause_name not in cause_counts:
                 cause_counts[cause_name] = 1
-        
+
         return cause_counts
 
     @staticmethod
@@ -487,9 +487,7 @@ class MultiComponentParser(ComponentConfigurationParser):
     def _normalize_effect_type(effect_type: str | None) -> str | None:
         if effect_type is None:
             return "loglinear"
-        normalized = (
-            effect_type.replace("-", "").replace("_", "").replace(" ", "").lower()
-        )
+        normalized = effect_type.replace("-", "").replace("_", "").replace(" ", "").lower()
         if normalized in {"loglinear"}:
             return "loglinear"
         if normalized in {"nonloglinear"}:
@@ -499,18 +497,18 @@ class MultiComponentParser(ComponentConfigurationParser):
     @staticmethod
     def _extract_disease_causes(components: list[Component]) -> set[str]:
         """Extract disease/cause names from DiseaseModel components.
-        
+
         Parameters
         ----------
         components
             List of parsed components
-            
+
         Returns
         -------
             Set of cause names found in DiseaseModel components
         """
         from vivarium_public_health.disease import DiseaseModel
-        
+
         causes = set()
         for component in components:
             if isinstance(component, DiseaseModel):

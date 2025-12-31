@@ -6,6 +6,9 @@ from vivarium_public_health.risks.base_risk import Risk
 from vivarium_public_health.risks.effect import NonLogLinearRiskEffect, RiskEffect
 
 from vivarium_profiling.plugins.parser import MultiComponentParser
+import pytest
+
+from vivarium_profiling.plugins.parser import MultiComponentParsingErrors
 
 
 def test_multi_component_parser():
@@ -162,15 +165,11 @@ def test_multi_component_parser_risks():
 
 def test_risk_affects_normally_defined_cause():
     """Test that risks can affect causes defined normally (not via causes key)."""
-    from vivarium_public_health.disease import (
-        DiseaseModel,
-        DiseaseState,
-        SusceptibleState,
-    )
 
     # Create a config with a normally-defined DiseaseModel and risks that affect it
-    # We'll create the DiseaseModel programmatically and add it to the parser
     config_dict = {
+        "vivarium_public_health": {
+            "disease": ["SIS_fixed_duration('lower_respiratory_infections', '28')"]},
         "risks": {
             "high_systolic_blood_pressure": {
                 "number": 1,
@@ -185,68 +184,30 @@ def test_risk_affects_normally_defined_cause():
         },
     }
 
-    # Create a mock disease model component to simulate a normally-defined cause
-    healthy = SusceptibleState("lower_respiratory_infections")
-    infected = DiseaseState("lower_respiratory_infections")
-    disease_model = DiseaseModel(
-        "lower_respiratory_infections",
-        states=[healthy, infected],
-    )
-
     config = LayeredConfigTree(config_dict)
-
     parser = MultiComponentParser()
+    components = parser.parse_component_config(config)
 
-    # Manually inject the disease model as if it were parsed from standard components
-    # by overriding process_level to return our mock component
-    original_process_level = parser.process_level
+    # Should have: 1 DiseaseModel + 1 Risk + 1 NonLogLinearRiskEffect
+    assert len(components) == 3
 
-    def mock_process_level(config, prefix):
-        if not config:
-            return []
-        # Return empty for risks-related processing
-        return []
+    disease_models = [c for c in components if isinstance(c, DiseaseModel)]
+    risks = [c for c in components if isinstance(c, Risk)]
+    effects = [c for c in components if isinstance(c, NonLogLinearRiskEffect)]
 
-    parser.process_level = mock_process_level
-
-    # Parse with the mock - this won't work as expected, so let's try a different approach
-    # Instead, let's just test that the validation accepts a normally-defined cause
-    # by manually calling the validation with the disease model already extracted
-
-    # Actually, let's verify validation works correctly
-    normally_defined_causes = {"lower_respiratory_infections"}
-    risks_config = config["risks"]
-
-    # This should not raise an error
-    try:
-        parser._validate_risks_config(risks_config, None, normally_defined_causes)
-    except Exception as e:
-        assert False, f"Validation should pass but raised: {e}"
-
-    # And verify building effects works
-    cause_counts = parser._get_cause_counts(None, normally_defined_causes)
-    assert cause_counts == {"lower_respiratory_infections": 1}
-
-    risk_config = risks_config["high_systolic_blood_pressure"]
-    affected_causes = risk_config["affected_causes"]
-
-    effects = parser._build_risk_effects(
-        "risk_factor.high_systolic_blood_pressure_1",
-        affected_causes,
-        cause_counts,
-    )
-
+    assert len(disease_models) == 1
+    assert len(risks) == 1
     assert len(effects) == 1
-    effect = effects[0]
+
+    # The effect should target the normally-defined cause
     assert (
-        effect.name
-        == "non_log_linear_risk_effect.high_systolic_blood_pressure_1_on_cause.lower_respiratory_infections_1.incidence_rate"
+        effects[0].name
+        == "non_log_linear_risk_effect.high_systolic_blood_pressure_1_on_cause.lower_respiratory_infections.incidence_rate"
     )
 
 
 def test_risk_error_when_affected_cause_number_exceeds_available():
     """Test validation error when affected_causes number exceeds available instances."""
-    from vivarium_profiling.plugins.parser import MultiComponentParsingErrors
 
     # Case 1: Multi-config cause with 2 instances, trying to affect 3
     config_dict = {
@@ -274,11 +235,8 @@ def test_risk_error_when_affected_cause_number_exceeds_available():
     config = LayeredConfigTree(config_dict)
     parser = MultiComponentParser()
 
-    try:
+    with pytest.raises(MultiComponentParsingErrors, match="exceeds available causes"):
         parser.parse_component_config(config)
-        assert False, "Should have raised MultiComponentParsingErrors"
-    except MultiComponentParsingErrors as e:
-        assert "exceeds available causes" in str(e)
 
 
 def test_risk_error_when_affected_cause_undefined():

@@ -11,11 +11,10 @@ class ArtifactManager(VivariumArtifactManager):
     """
 
     def load(self, key: str):
-        # Strip numeric suffix from cause/risk names
-        # e.g. 'risk_factor.high_systolic_blood_pressure_1.distribution'
-        # to 'risk_factor.high_systolic_blood_pressure.distribution'
-
-        breakpoint()
+        """Strip numeric suffix from cause/risk names
+        e.g.: 'risk_factor.high_systolic_blood_pressure_1.distribution'
+        -> 'risk_factor.high_systolic_blood_pressure.distribution'
+        """
         if len(key.split(".")) != 3:
             return super().load(key)
 

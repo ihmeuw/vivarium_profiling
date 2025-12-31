@@ -271,8 +271,26 @@ def test_risk_error_when_affected_cause_undefined():
     with pytest.raises(MultiComponentParsingErrors, match="nonexistent_cause.*is not defined"):
         parser.parse_component_config(config)
 
+
+def test_error_when_cause_defined_in_both_multi_config_and_standard():
+    """Test validation error when the same cause is defined in both places."""
+
+    # Create a config that defines a cause in both the 'causes' multi-config block
+    # and as a standard component
+    config_dict = {
+        "causes": {
+            "lower_respiratory_infections": {
+                "number": 2,
+                "duration": "28",
+                "observers": False,
+            }
+        },
+        "vivarium_public_health": {
+            "disease": ["SIS_fixed_duration('lower_respiratory_infections', '28')"]},
+    }
+
+    config = LayeredConfigTree(config_dict)
+    parser = MultiComponentParser()
+
+    with pytest.raises(MultiComponentParsingErrors, match="Please do not define the same cause in both 'causes' multi-config and as a standard component."):
         parser.parse_component_config(config)
-        assert False, "Should have raised MultiComponentParsingErrors"
-    except MultiComponentParsingErrors as e:
-        assert "nonexistent_cause" in str(e)
-        assert "is not defined" in str(e)

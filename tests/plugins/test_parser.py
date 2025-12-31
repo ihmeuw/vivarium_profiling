@@ -1,3 +1,4 @@
+import pytest
 from layered_config_tree import LayeredConfigTree
 from vivarium_public_health.disease import DiseaseModel
 from vivarium_public_health.results import DiseaseObserver
@@ -5,10 +6,10 @@ from vivarium_public_health.results.risk import CategoricalRiskObserver
 from vivarium_public_health.risks.base_risk import Risk
 from vivarium_public_health.risks.effect import NonLogLinearRiskEffect, RiskEffect
 
-from vivarium_profiling.plugins.parser import MultiComponentParser
-import pytest
-
-from vivarium_profiling.plugins.parser import MultiComponentParsingErrors
+from vivarium_profiling.plugins.parser import (
+    MultiComponentParser,
+    MultiComponentParsingErrors,
+)
 
 
 def test_multi_component_parser():
@@ -102,7 +103,7 @@ def test_multi_component_parser_risks():
         "risks": {
             "high_systolic_blood_pressure": {
                 "number": 1,
-                "observers": False, #Continuous risk
+                "observers": False,  # Continuous risk
                 "affected_causes": {
                     "lower_respiratory_infections": {
                         "effect_type": "nonloglinear",
@@ -169,7 +170,8 @@ def test_risk_affects_normally_defined_cause():
     # Create a config with a normally-defined DiseaseModel and risks that affect it
     config_dict = {
         "vivarium_public_health": {
-            "disease": ["SIS_fixed_duration('lower_respiratory_infections', '28')"]},
+            "disease": ["SIS_fixed_duration('lower_respiratory_infections', '28')"]
+        },
         "risks": {
             "high_systolic_blood_pressure": {
                 "number": 1,
@@ -242,7 +244,6 @@ def test_risk_error_when_affected_cause_number_exceeds_available():
 def test_risk_error_when_affected_cause_undefined():
     """Test validation error when affected cause doesn't exist anywhere."""
 
-
     config_dict = {
         "causes": {
             "lower_respiratory_infections": {
@@ -268,7 +269,9 @@ def test_risk_error_when_affected_cause_undefined():
     config = LayeredConfigTree(config_dict)
     parser = MultiComponentParser()
 
-    with pytest.raises(MultiComponentParsingErrors, match="nonexistent_cause.*is not defined"):
+    with pytest.raises(
+        MultiComponentParsingErrors, match="nonexistent_cause.*is not defined"
+    ):
         parser.parse_component_config(config)
 
 
@@ -286,11 +289,15 @@ def test_error_when_cause_defined_in_both_multi_config_and_standard():
             }
         },
         "vivarium_public_health": {
-            "disease": ["SIS_fixed_duration('lower_respiratory_infections', '28')"]},
+            "disease": ["SIS_fixed_duration('lower_respiratory_infections', '28')"]
+        },
     }
 
     config = LayeredConfigTree(config_dict)
     parser = MultiComponentParser()
 
-    with pytest.raises(MultiComponentParsingErrors, match="Please do not define the same cause in both 'causes' multi-config and as a standard component."):
+    with pytest.raises(
+        MultiComponentParsingErrors,
+        match="Please do not define the same cause in both 'causes' multi-config and as a standard component.",
+    ):
         parser.parse_component_config(config)

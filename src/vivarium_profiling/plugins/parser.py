@@ -1,5 +1,4 @@
 from layered_config_tree import LayeredConfigTree
-from loguru import logger
 from vivarium import Component
 from vivarium.framework.components import ComponentConfigurationParser
 from vivarium.framework.components.parser import ParsingError
@@ -88,7 +87,6 @@ class MultiComponentParser(ComponentConfigurationParser):
             if standard_component_config
             else []
         )
-        components += standard_components
 
         # Extract normally-defined disease causes
         standard_causes = {
@@ -109,6 +107,9 @@ class MultiComponentParser(ComponentConfigurationParser):
             components += self._get_multi_risk_components(
                 risks_config, causes_config, standard_causes
             )
+
+        # Add standard components last so that we don't setup results before diseases
+        components += standard_components
 
         return components
 
@@ -246,11 +247,13 @@ class MultiComponentParser(ComponentConfigurationParser):
 
             for i in range(number):
                 suffixed_risk_name = f"{risk_name}_{i + 1}"
-                suffixed_entity_string = f"risk_factor.{suffixed_risk_name}"
-                components.append(Risk(suffixed_entity_string))
+                components.append(Risk(f"risk_factor.{suffixed_risk_name}"))
                 components.extend(
                     self._build_risk_effects(
-                        suffixed_entity_string, affected_causes, cause_counts, standard_causes
+                        f"risk_factor.{suffixed_risk_name}",
+                        affected_causes,
+                        cause_counts,
+                        standard_causes,
                     )
                 )
 

@@ -273,20 +273,17 @@ class MultiComponentParser(ComponentConfigurationParser):
 
         for risk_name, risk_config in risks_config.items():
             number = int(risk_config.get("number", DEFAULT_RISK_CONFIG["number"]))
-            distribution_type = risk_config.get(
-                "distribution_type", DEFAULT_RISK_CONFIG["distribution_type"]
-            )
             observers = risk_config.get("observers", DEFAULT_RISK_CONFIG["observers"])
             affected_causes = risk_config.get(
                 "affected_causes", DEFAULT_RISK_CONFIG["affected_causes"]
             )
 
-            risk_identifier = self._get_risk_identifier(risk_name)
             for i in range(number):
-                suffixed_risk = f"{risk_identifier}_{i + 1}"
-                components.append(Risk(suffixed_risk))
+                suffixed_risk_name = f"{risk_name}_{i + 1}"
+                suffixed_entity_string = f"risk_factor.{suffixed_risk_name}"
+                components.append(Risk(suffixed_entity_string))
                 components.extend(
-                    self._build_risk_effects(suffixed_risk, affected_causes, cause_counts)
+                    self._build_risk_effects(suffixed_entity_string, affected_causes, cause_counts)
                 )
 
                 if observers:
@@ -300,17 +297,14 @@ class MultiComponentParser(ComponentConfigurationParser):
 
     def _build_risk_effects(
         self,
-        suffixed_risk: str,
+        suffixed_entity_string: str,
         affected_causes: dict,
         cause_counts: dict[str, int],
     ) -> list[Component]:
         components: list[Component] = []
         for cause_name, cause_config in affected_causes.items():
             effect_number = int(cause_config.get("number", cause_counts.get(cause_name, 1)))
-            effect_type = (
-                self._normalize_effect_type(cause_config.get("effect_type", "loglinear"))
-                or "loglinear"
-            )
+            effect_type = cause_config.get("effect_type", "loglinear")
             target_measure = cause_config.get("measure", "incidence_rate")
 
             effect_cls = (
@@ -320,7 +314,7 @@ class MultiComponentParser(ComponentConfigurationParser):
             for i in range(effect_number):
                 components.append(
                     effect_cls(
-                        suffixed_risk,
+                        suffixed_entity_string,
                         f"cause.{cause_name}_{i + 1}.{target_measure}",
                     )
                 )
@@ -451,53 +445,6 @@ class MultiComponentParser(ComponentConfigurationParser):
 
         # Add normally-defined causes with count = 1
         for cause_name in standard_causes:
-            if cause_name not in cause_counts:
-                cause_counts[cause_name] = 1
+            cause_counts[cause_name] = 1
 
         return cause_counts
-
-    @staticmethod
-    def _get_risk_identifier(risk_name: str) -> str:
-        return risk_name if "." in risk_name else f"risk_factor.{risk_name}"
-
-    @staticmethod
-    def _get_risk_name_only(risk_identifier: str) -> str:
-        return risk_identifier.split(".", maxsplit=1)[-1]
-
-    @staticmethod
-    def _normalize_effect_type(effect_type: str | None) -> str | None:
-        if effect_type is None:
-            return "loglinear"
-        normalized = effect_type.replace("-", "").replace("_", "").replace(" ", "").lower()
-        if normalized in {"loglinear"}:
-            return "loglinear"
-        if normalized in {"nonloglinear"}:
-            return "nonloglinear"
-        return None
-
-    @staticmethod
-    def _extract_disease_causes(components: list[Component]) -> set[str]:
-        """Extract disease/cause names from DiseaseModel components.
-
-        Parameters
-        ----------
-        components
-            List of parsed components
-
-        Returns
-        -------
-            Set of cause names found in DiseaseModel components
-        """
-        from vivarium_public_health.disease import DiseaseModel
-
-        causes = set()
-        for component in components:
-            if isinstance(component, DiseaseModel):
-                # Extract cause name from the component's state_column
-                # which is in format like "lower_respiratory_infections" or "lower_respiratory_infections_1"
-                cause_name = component.state_column
-                # Remove numeric suffix if present
-                if "_" in cause_name and cause_name.rsplit("_", 1)[-1].isdigit():
-                    cause_name = cause_name.rsplit("_", 1)[0]
-                causes.add(cause_name)
-        return causes

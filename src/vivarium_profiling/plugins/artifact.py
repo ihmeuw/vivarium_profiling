@@ -6,7 +6,7 @@ from vivarium.framework.artifact import ArtifactManager as VivariumArtifactManag
 class ArtifactManager(VivariumArtifactManager):
     """Customized ArtifactManager for Vivarium Profiling.
 
-    The Key difference is that when calling builder.data.load,
+    The key difference is that when calling builder.data.load,
     we will strip the numeric suffix from the cause/risk name in the data key.
     """
 

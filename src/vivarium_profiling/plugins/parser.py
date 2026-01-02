@@ -1,7 +1,11 @@
+import re
+
+import pandas as pd
 from layered_config_tree import LayeredConfigTree
 from vivarium import Component
 from vivarium.framework.components import ComponentConfigurationParser
 from vivarium.framework.components.parser import ParsingError
+from vivarium.framework.engine import Builder
 from vivarium_public_health.disease import DiseaseModel
 from vivarium_public_health.disease.models import SIS_fixed_duration
 from vivarium_public_health.results import DiseaseObserver
@@ -9,10 +13,8 @@ from vivarium_public_health.results.risk import CategoricalRiskObserver
 from vivarium_public_health.risks.base_risk import Risk
 from vivarium_public_health.risks.effect import (
     NonLogLinearRiskEffect as NonLogLinearRiskEffect_,
-    RiskEffect as RiskEffect_,
 )
-import pandas as pd
-import re
+from vivarium_public_health.risks.effect import RiskEffect as RiskEffect_
 
 CAUSE_KEY = "causes"
 RISK_KEY = "risks"
@@ -25,9 +27,8 @@ DEFAULT_RISK_CONFIG = {
 
 
 class RiskEffect(RiskEffect_):
-
     def get_filtered_data(
-        self, builder: "Builder", data_source: str | float | pd.DataFrame
+        self, builder: Builder, data_source: str | float | pd.DataFrame
     ) -> float | pd.DataFrame:
         data = super().get_data(builder, data_source)
 

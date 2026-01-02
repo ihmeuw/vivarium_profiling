@@ -312,6 +312,18 @@ def test_multi_component_parser_simulation():
                 "observers": True,
             }
         },
+        "risks": {
+            "unsafe_water_source": {
+                "number": 1,
+                "observers": True,
+                "affected_causes": {
+                    "lower_respiratory_infections": {
+                        "effect_type": "loglinear",
+                        "number": 1,
+                    }
+                },
+            }
+        },
         "vivarium_public_health": {
             "population": ["BasePopulation()", "Mortality()"],
             "results": ["ResultsStratifier()", "MortalityObserver()"],
@@ -351,11 +363,21 @@ def test_multi_component_parser_simulation():
     )
 
     # Verify components were created correctly
-    component_names = sim._component_manager.list_components()
+    component_names = sim._component_manager.list_components().keys()
     assert "disease_model.lower_respiratory_infections_1" in component_names
     assert "disease_model.lower_respiratory_infections_2" in component_names
     assert "disease_observer.lower_respiratory_infections_1" in component_names
     assert "disease_observer.lower_respiratory_infections_2" in component_names
+    assert "risk_factor.unsafe_water_source_1" in component_names
+    assert (
+        "risk_effect.unsafe_water_source_1_on_cause.lower_respiratory_infections_1.incidence_rate"
+        in component_names
+    )
+    assert (
+        "risk_effect.unsafe_water_source_1_on_cause.lower_respiratory_infections_2.incidence_rate"
+        in component_names
+    )
+    assert "categorical_risk_observer.unsafe_water_source_1" in component_names
 
     # Run the simulation for a few timesteps
     sim.take_steps(3)

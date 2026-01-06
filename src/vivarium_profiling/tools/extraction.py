@@ -159,9 +159,7 @@ def get_peak_memory() -> float | None:
 
     """
     try:
-        result = subprocess.run(
-            ["mprof", "peak"], capture_output=True, text=True, check=True
-        )
+        result = subprocess.run(["mprof", "peak"], capture_output=True, text=True, check=True)
         # Extract the first decimal number from the output
         match = re.search(r"(\d+\.\d+)", result.stdout)
         if match:
@@ -348,9 +346,7 @@ def extract_simulation_phase_times(
             with stats_file.open("r") as fh:
                 for line in fh:
                     # Check if line is from the expected source file
-                    if not any(
-                        phase.file_pattern in line for phase in phases
-                    ):
+                    if not any(phase.file_pattern in line for phase in phases):
                         continue
 
                     # Check if line contains a phase function call

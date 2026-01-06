@@ -13,9 +13,9 @@ from loguru import logger
 
 from vivarium_profiling.tools import configure_logging_to_terminal
 from vivarium_profiling.tools.extraction import (
-    DEFAULT_BOTTLENECKS,
-    BottleneckConfig,
-    extract_bottleneck_metrics,
+    DEFAULT_METRICS,
+    MetricConfig,
+    extract_metrics,
     extract_runtime,
     get_peak_memory,
     get_results_columns,
@@ -42,11 +42,11 @@ def create_results_directory(output_dir: str = ".") -> str:
 
 
 def initialize_results_file(
-    results_dir: str, bottlenecks: list[BottleneckConfig] | None = None
+    results_dir: str, metrics: list[MetricConfig] | None = None
 ) -> str:
     """Initialize the CSV results file with headers."""
     results_file = Path(results_dir) / RESULTS_SUMMARY_NAME
-    columns = get_results_columns(bottlenecks)
+    columns = get_results_columns(metrics)
     df = pd.DataFrame(columns=columns)
     df.to_csv(results_file, index=False)
     return str(results_file)
@@ -86,7 +86,7 @@ def run_single_benchmark(
     total_runs: int,
     spec_results_dir: str,
     model_spec_name: str,
-    bottlenecks: list[BottleneckConfig] | None = None,
+    metrics: list[MetricConfig] | None = None,
 ) -> dict[str, Any]:
     """Run a single benchmark iteration.
 
@@ -102,16 +102,16 @@ def run_single_benchmark(
         Directory to store results for this spec.
     model_spec_name
         Name of the model spec (stem of the file).
-    bottlenecks
-        List of bottleneck configurations to extract. Defaults to DEFAULT_BOTTLENECKS.
+    metrics
+        List of metric configurations to extract. Defaults to DEFAULT_METRICS.
 
     Returns
     -------
         Dictionary of extracted metrics.
 
     """
-    if bottlenecks is None:
-        bottlenecks = DEFAULT_BOTTLENECKS
+    if metrics is None:
+        metrics = DEFAULT_METRICS
 
     logger.info(f"Run {run_number}/{total_runs} for {spec}...")
 
@@ -135,15 +135,15 @@ def run_single_benchmark(
 
     rt_s = extract_runtime(stats_file_txt)
 
-    # Extract bottleneck metrics using configurable patterns
-    bottleneck_metrics = extract_bottleneck_metrics(stats_file_txt, bottlenecks)
+    # Extract all configured metrics (bottlenecks + phases)
+    extracted_metrics = extract_metrics(stats_file_txt, metrics)
 
     results = {
         "model_spec": spec,
         "run": run_number,
         "rt_s": rt_s,
         "mem_mb": mem_mb,
-        **bottleneck_metrics,
+        **extracted_metrics,
     }
 
     logger.info(f"Finished run {run_number}/{total_runs} for {spec}")
@@ -158,7 +158,7 @@ def run_benchmark_loop(
     baseline_model_runs: int,
     output_dir: str = ".",
     verbose: int = 0,
-    bottlenecks: list[BottleneckConfig] | None = None,
+    metrics: list[MetricConfig] | None = None,
 ) -> str:
     """Main function to run benchmarks on model specifications.
 
@@ -174,16 +174,16 @@ def run_benchmark_loop(
         Directory to save results.
     verbose
         Verbosity level for logging.
-    bottlenecks
-        List of bottleneck configurations to extract. Defaults to DEFAULT_BOTTLENECKS.
+    metrics
+        List of metric configurations to extract. Defaults to DEFAULT_METRICS.
 
     Returns
     -------
         Path to the results directory.
 
     """
-    if bottlenecks is None:
-        bottlenecks = DEFAULT_BOTTLENECKS
+    if metrics is None:
+        metrics = DEFAULT_METRICS
 
     configure_logging_to_terminal(verbose)
 
@@ -192,7 +192,7 @@ def run_benchmark_loop(
 
     # Create results directory and initialize results file
     results_dir = create_results_directory(output_dir)
-    results_file = initialize_results_file(results_dir, bottlenecks)
+    results_file = initialize_results_file(results_dir, metrics)
 
     logger.info("Running benchmarks:")
     logger.info(f"  Model Specs: {model_specifications}")
@@ -222,7 +222,7 @@ def run_benchmark_loop(
                     num_runs,
                     str(spec_specific_results_dir),
                     model_spec_name,
-                    bottlenecks,
+                    metrics,
                 )
                 result_df = pd.DataFrame([results])
                 result_df.to_csv(results_file, mode="a", header=False, index=False)

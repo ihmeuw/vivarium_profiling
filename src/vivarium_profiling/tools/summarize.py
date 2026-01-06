@@ -6,17 +6,13 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from vivarium_profiling.tools.extraction import (
-    DEFAULT_BOTTLENECKS,
-    extract_simulation_phase_times,
-    get_bottleneck_names,
-)
+from vivarium_profiling.tools.extraction import get_bottleneck_names
 
 """Benchmark summarization and visualization utilities."""
 
 
 BASELINE = "model_spec_baseline.yaml"  # Default baseline model spec name
-# Use bottleneck names from extraction module for backwards compatibility
+# Use bottleneck names from extraction module
 BOTTLENECKS = get_bottleneck_names()
 
 # Set style for better plots
@@ -518,8 +514,7 @@ if __name__ == "__main__":
     print(f"Summarizing results to {output_dir}\n")
 
     raw = pd.read_csv(benchmark_results_filepath)
-    raw = extract_simulation_phase_times(raw, output_dir)
-    if not all(raw.notna()):
+    if raw.isna().any().any():
         raise ValueError("NaNs found in raw data.")
 
     summary = summarize(raw, output_dir)

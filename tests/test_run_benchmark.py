@@ -7,10 +7,25 @@ import pandas as pd
 import pytest
 
 from vivarium_profiling.tools.run_benchmark import (
-    RESULTS_SUMMARY_COLUMNS,
     RESULTS_SUMMARY_NAME,
     run_benchmark_loop,
 )
+
+RESULTS_SUMMARY_COLUMNS = [
+    "model_spec",
+    "run",
+    "rt_s",
+    "mem_mb",
+    "gather_results_cumtime",
+    "gather_results_percall",
+    "gather_results_ncalls",
+    "pipeline_call_cumtime",
+    "pipeline_call_percall",
+    "pipeline_call_ncalls",
+    "population_get_cumtime",
+    "population_get_percall",
+    "population_get_ncalls",
+]
 
 
 @pytest.mark.slow

@@ -41,8 +41,7 @@ def create_results_directory(output_dir: str = ".") -> str:
 def initialize_results_file(results_dir: str, config: ExtractionConfig) -> str:
     """Initialize the CSV results file with headers."""
     results_file = Path(results_dir) / RESULTS_SUMMARY_NAME
-    columns = config.results_columns
-    df = pd.DataFrame(columns=columns)
+    df = pd.DataFrame(columns=config.results_columns)
     df.to_csv(results_file, index=False)
     return str(results_file)
 

@@ -135,7 +135,7 @@ def phase_config(
 
 
 # Default bottleneck configurations
-DEFAULT_BOTTLENECKS: list[CallPattern] = [
+DEFAULT_BOTTLENECKS = [
     bottleneck_config(
         name="gather_results",
         pattern=r"results/manager\.py:\d+\(gather_results\)",
@@ -151,16 +151,13 @@ DEFAULT_BOTTLENECKS: list[CallPattern] = [
 ]
 
 # Default simulation phase configurations
-DEFAULT_PHASES: list[CallPattern] = [
+DEFAULT_PHASES = [
     phase_config("setup"),
     phase_config("initialize_simulants"),
     phase_config("run"),
     phase_config("finalize"),
     phase_config("report"),
 ]
-
-# Combined default metrics (bottlenecks + phases)
-DEFAULT_METRICS: list[CallPattern] = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
 
 
 @dataclass
@@ -174,7 +171,10 @@ class ExtractionConfig:
 
     """
 
-    patterns: list[CallPattern] = DEFAULT_METRICS
+    def __init__(self, patterns: list[CallPattern] | None = None):
+        if patterns is None:
+            patterns = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
+        self.patterns = patterns
 
     @property
     def metric_names(self) -> list[str]:

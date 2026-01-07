@@ -13,9 +13,7 @@ from loguru import logger
 
 from vivarium_profiling.tools import configure_logging_to_terminal
 from vivarium_profiling.tools.extraction import (
-    DEFAULT_CONFIG,
     ExtractionConfig,
-    extract_metrics,
     extract_runtime,
     get_peak_memory,
 )
@@ -131,7 +129,7 @@ def run_single_benchmark(
     rt_s = extract_runtime(stats_file_txt)
 
     # Extract all configured metrics (bottlenecks + phases)
-    extracted_metrics = extract_metrics(stats_file_txt, config)
+    extracted_metrics = config.extract_metrics(stats_file_txt)
 
     results = {
         "model_spec": spec,

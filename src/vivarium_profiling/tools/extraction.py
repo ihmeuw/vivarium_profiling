@@ -204,7 +204,7 @@ class ExtractionConfig:
         base_columns = ["model_spec", "run", "rt_s", "mem_mb"]
         return base_columns + self.metric_columns
 
-    def extract_metrics(stats_file_txt: str | Path) -> dict[str, float | int | None]:
+    def extract_metrics(self, stats_file_txt: str | Path) -> dict[str, float | int | None]:
         """Extract metrics for all configured items from a stats file.
 
         Parameters

@@ -13,12 +13,11 @@ from loguru import logger
 
 from vivarium_profiling.tools import configure_logging_to_terminal
 from vivarium_profiling.tools.extraction import (
-    DEFAULT_METRICS,
-    MetricConfig,
+    DEFAULT_CONFIG,
+    ExtractionConfig,
     extract_metrics,
     extract_runtime,
     get_peak_memory,
-    get_results_columns,
 )
 
 RESULTS_SUMMARY_NAME = "benchmark_results.csv"
@@ -41,12 +40,10 @@ def create_results_directory(output_dir: str = ".") -> str:
     return str(results_dir)
 
 
-def initialize_results_file(
-    results_dir: str, metrics: list[MetricConfig] | None = None
-) -> str:
+def initialize_results_file(results_dir: str, config: ExtractionConfig) -> str:
     """Initialize the CSV results file with headers."""
     results_file = Path(results_dir) / RESULTS_SUMMARY_NAME
-    columns = get_results_columns(metrics)
+    columns = config.results_columns
     df = pd.DataFrame(columns=columns)
     df.to_csv(results_file, index=False)
     return str(results_file)
@@ -86,7 +83,7 @@ def run_single_benchmark(
     total_runs: int,
     spec_results_dir: str,
     model_spec_name: str,
-    metrics: list[MetricConfig] | None = None,
+    config: ExtractionConfig,
 ) -> dict[str, Any]:
     """Run a single benchmark iteration.
 
@@ -102,16 +99,14 @@ def run_single_benchmark(
         Directory to store results for this spec.
     model_spec_name
         Name of the model spec (stem of the file).
-    metrics
-        List of metric configurations to extract. Defaults to DEFAULT_METRICS.
+    config
+        Extraction configuration. Defaults to DEFAULT_CONFIG.
 
     Returns
     -------
         Dictionary of extracted metrics.
 
     """
-    if metrics is None:
-        metrics = DEFAULT_METRICS
 
     logger.info(f"Run {run_number}/{total_runs} for {spec}...")
 
@@ -136,7 +131,7 @@ def run_single_benchmark(
     rt_s = extract_runtime(stats_file_txt)
 
     # Extract all configured metrics (bottlenecks + phases)
-    extracted_metrics = extract_metrics(stats_file_txt, metrics)
+    extracted_metrics = extract_metrics(stats_file_txt, config)
 
     results = {
         "model_spec": spec,
@@ -158,7 +153,6 @@ def run_benchmark_loop(
     baseline_model_runs: int,
     output_dir: str = ".",
     verbose: int = 0,
-    metrics: list[MetricConfig] | None = None,
 ) -> str:
     """Main function to run benchmarks on model specifications.
 
@@ -174,16 +168,15 @@ def run_benchmark_loop(
         Directory to save results.
     verbose
         Verbosity level for logging.
-    metrics
-        List of metric configurations to extract. Defaults to DEFAULT_METRICS.
+    config
+        Extraction configuration. Defaults to DEFAULT_CONFIG.
 
     Returns
     -------
         Path to the results directory.
 
     """
-    if metrics is None:
-        metrics = DEFAULT_METRICS
+    config = ExtractionConfig()
 
     configure_logging_to_terminal(verbose)
 
@@ -192,7 +185,7 @@ def run_benchmark_loop(
 
     # Create results directory and initialize results file
     results_dir = create_results_directory(output_dir)
-    results_file = initialize_results_file(results_dir, metrics)
+    results_file = initialize_results_file(results_dir, config)
 
     logger.info("Running benchmarks:")
     logger.info(f"  Model Specs: {model_specifications}")
@@ -222,7 +215,7 @@ def run_benchmark_loop(
                     num_runs,
                     str(spec_specific_results_dir),
                     model_spec_name,
-                    metrics,
+                    config,
                 )
                 result_df = pd.DataFrame([results])
                 result_df.to_csv(results_file, mode="a", header=False, index=False)

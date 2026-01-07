@@ -1,7 +1,7 @@
 """Data extraction utilities for benchmark profiling results.
 
 This module provides configurable extraction of profiling metrics from cProfile
-stats files and memory profiler output. The extraction is driven by MetricConfig
+stats files and memory profiler output. The extraction is driven by CallPattern
 objects that map logical names to regex patterns for matching function calls.
 """
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 @dataclass
-class MetricConfig:
+class CallPattern:
     """Configuration for extracting metrics for a specific function from cProfile stats.
 
     Attributes
@@ -84,8 +84,8 @@ class MetricConfig:
         return cols
 
 
-def bottleneck_config(name: str, pattern: str) -> MetricConfig:
-    """Create a MetricConfig for a bottleneck function (extracts all 3 metrics).
+def bottleneck_config(name: str, pattern: str) -> CallPattern:
+    """Create a CallPattern for a bottleneck function (extracts all 3 metrics).
 
     Parameters
     ----------
@@ -96,10 +96,10 @@ def bottleneck_config(name: str, pattern: str) -> MetricConfig:
 
     Returns
     -------
-        MetricConfig configured for bottleneck extraction.
+        CallPattern configured for bottleneck extraction.
 
     """
-    return MetricConfig(
+    return CallPattern(
         name=name,
         pattern=pattern,
         extract_cumtime=True,
@@ -110,8 +110,8 @@ def bottleneck_config(name: str, pattern: str) -> MetricConfig:
 
 def phase_config(
     name: str, file_pattern: str = "/vivarium/framework/engine.py:"
-) -> MetricConfig:
-    """Create a MetricConfig for a simulation phase (extracts cumtime only).
+) -> CallPattern:
+    """Create a CallPattern for a simulation phase (extracts cumtime only).
 
     Parameters
     ----------
@@ -122,13 +122,13 @@ def phase_config(
 
     Returns
     -------
-        MetricConfig configured for phase extraction.
+        CallPattern configured for phase extraction.
 
     """
     # Build regex pattern: file_pattern + line number + (function_name)
     escaped_file = re.escape(file_pattern)
     pattern = rf"{escaped_file}\d+\({name}\)"
-    return MetricConfig(
+    return CallPattern(
         name=name,
         pattern=pattern,
         extract_cumtime=True,
@@ -139,7 +139,7 @@ def phase_config(
 
 
 # Default bottleneck configurations
-DEFAULT_BOTTLENECKS: list[MetricConfig] = [
+DEFAULT_BOTTLENECKS: list[CallPattern] = [
     bottleneck_config(
         name="gather_results",
         pattern=r"results/manager\.py:\d+\(gather_results\)",
@@ -155,7 +155,7 @@ DEFAULT_BOTTLENECKS: list[MetricConfig] = [
 ]
 
 # Default simulation phase configurations
-DEFAULT_PHASES: list[MetricConfig] = [
+DEFAULT_PHASES: list[CallPattern] = [
     phase_config("setup"),
     phase_config("initialize_simulants"),
     phase_config("run"),
@@ -164,45 +164,77 @@ DEFAULT_PHASES: list[MetricConfig] = [
 ]
 
 # Combined default metrics (bottlenecks + phases)
-DEFAULT_METRICS: list[MetricConfig] = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
+DEFAULT_METRICS: list[CallPattern] = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
 
 
-def get_metric_columns(metrics: list[MetricConfig] | None = None) -> list[str]:
-    """Get all column names for the given metric configurations.
+@dataclass
+class ExtractionConfig:
+    """Configuration for extracting metrics from profiling results.
 
-    Parameters
+    Attributes
     ----------
-    metrics
-        List of metric configurations. Defaults to DEFAULT_METRICS.
-
-    Returns
-    -------
-        List of column names for all metrics.
+    patterns
+        List of CallPattern objects defining what metrics to extract.
 
     """
-    if metrics is None:
-        metrics = DEFAULT_METRICS
-    columns = []
-    for config in metrics:
-        columns.extend(config.columns)
-    return columns
 
+    patterns: list[CallPattern] = DEFAULT_METRICS
 
-def get_results_columns(metrics: list[MetricConfig] | None = None) -> list[str]:
-    """Get all column names for benchmark results CSV.
+    @property
+    def metric_names(self) -> list[str]:
+        """Get the names of all configured metrics."""
+        return [pattern.name for pattern in self.patterns]
 
-    Parameters
-    ----------
-    metrics
-        List of metric configurations. Defaults to DEFAULT_METRICS.
+    @property
+    def bottleneck_names(self) -> list[str]:
+        """Get the names of bottleneck patterns (those that extract all 3 metrics)."""
+        return [
+            pattern.name
+            for pattern in self.patterns
+            if pattern.extract_cumtime and pattern.extract_percall and pattern.extract_ncalls
+        ]
 
-    Returns
-    -------
-        Complete list of column names for benchmark results.
+    @property
+    def metric_columns(self) -> list[str]:
+        """Get all column names for the configured patterns."""
+        columns = []
+        for pattern in self.patterns:
+            columns.extend(pattern.columns)
+        return columns
 
-    """
-    base_columns = ["model_spec", "run", "rt_s", "mem_mb"]
-    return base_columns + get_metric_columns(metrics)
+    @property
+    def results_columns(self) -> list[str]:
+        """Get all column names for benchmark results CSV."""
+        base_columns = ["model_spec", "run", "rt_s", "mem_mb"]
+        return base_columns + self.metric_columns
+
+    def extract_metrics(stats_file_txt: str | Path) -> dict[str, float | int | None]:
+        """Extract metrics for all configured items from a stats file.
+
+        Parameters
+        ----------
+        stats_file_txt
+            Path to the .stats.txt file generated by cProfile.
+        config
+            Extraction configuration. Defaults to DEFAULT_CONFIG.
+
+        Returns
+        -------
+            Dictionary mapping column names to extracted values.
+
+        """
+
+        results: dict[str, float | int | None] = {}
+        for pattern in self.patterns:
+            cumtime, percall, ncalls = parse_function_metrics(stats_file_txt, pattern.pattern)
+            if pattern.extract_cumtime:
+                results[pattern.cumtime_col] = cumtime
+            if pattern.extract_percall:
+                results[pattern.percall_col] = percall
+            if pattern.extract_ncalls:
+                results[pattern.ncalls_col] = ncalls
+
+        return results
 
 
 def get_peak_memory() -> float | None:
@@ -307,73 +339,3 @@ def parse_function_metrics(
         )
 
     return None, None, None
-
-
-def extract_metrics(
-    stats_file_txt: str | Path,
-    metrics: list[MetricConfig] | None = None,
-) -> dict[str, float | int | None]:
-    """Extract metrics for all configured items from a stats file.
-
-    Parameters
-    ----------
-    stats_file_txt
-        Path to the .stats.txt file generated by cProfile.
-    metrics
-        List of metric configurations. Defaults to DEFAULT_METRICS.
-
-    Returns
-    -------
-        Dictionary mapping column names to extracted values.
-
-    """
-    if metrics is None:
-        metrics = DEFAULT_METRICS
-
-    results: dict[str, float | int | None] = {}
-    for config in metrics:
-        cumtime, percall, ncalls = parse_function_metrics(stats_file_txt, config.pattern)
-        if config.extract_cumtime:
-            results[config.cumtime_col] = cumtime
-        if config.extract_percall:
-            results[config.percall_col] = percall
-        if config.extract_ncalls:
-            results[config.ncalls_col] = ncalls
-
-    return results
-
-
-def get_metric_names(metrics: list[MetricConfig] | None = None) -> list[str]:
-    """Get the names of all configured metrics.
-
-    Parameters
-    ----------
-    metrics
-        List of metric configurations. Defaults to DEFAULT_METRICS.
-
-    Returns
-    -------
-        List of metric names.
-
-    """
-    if metrics is None:
-        metrics = DEFAULT_METRICS
-    return [config.name for config in metrics]
-
-
-def get_bottleneck_names(bottlenecks: list[MetricConfig] | None = None) -> list[str]:
-    """Get the names of all configured bottlenecks.
-
-    Parameters
-    ----------
-    bottlenecks
-        List of bottleneck configurations. Defaults to DEFAULT_BOTTLENECKS.
-
-    Returns
-    -------
-        List of bottleneck names.
-
-    """
-    if bottlenecks is None:
-        bottlenecks = DEFAULT_BOTTLENECKS
-    return [config.name for config in bottlenecks]

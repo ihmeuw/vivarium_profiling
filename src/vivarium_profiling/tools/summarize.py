@@ -1,4 +1,3 @@
-import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
@@ -6,7 +5,10 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from vivarium_profiling.tools.extraction import DEFAULT_BOTTLENECKS
+from vivarium_profiling.tools.extraction import (
+    DEFAULT_BOTTLENECKS,
+    ExtractionConfig,
+)
 
 """Benchmark summarization and visualization utilities."""
 
@@ -20,179 +22,79 @@ plt.style.use("default")
 sns.set_palette("husl")
 
 
-def summarize(raw: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
-    # extract bottleneck fractions of run() time
+def summarize(
+    raw: pd.DataFrame, output_dir: Path, config: ExtractionConfig | None = None
+) -> pd.DataFrame:
+    """Summarize benchmark results with statistics and percent differences.
+
+    Parameters
+    ----------
+    raw
+        Raw benchmark results DataFrame with columns: model_spec, run, rt_s, mem_mb,
+        and metric columns from extraction config.
+    output_dir
+        Directory to save summary.csv.
+    config
+        Extraction configuration defining metrics to summarize. If None, uses default.
+
+    Returns
+    -------
+        Summary DataFrame with aggregated statistics and percent differences.
+
+    """
+    if config is None:
+        config = ExtractionConfig()
+
+    # Get bottleneck names for fraction calculations
+    bottleneck_names = [p.name for p in config.patterns if p.extract_cumtime]
+
+    # Calculate derived columns
     summary = raw.copy()
     summary["rt_non_run_s"] = summary["rt_s"] - summary["rt_run_s"]
-    for bottleneck in BOTTLENECKS:
-        summary[f"{bottleneck}_fraction"] = (
-            summary[f"{bottleneck}_cumtime"] / summary["rt_run_s"]
-        )
-    summary = (
-        summary.groupby("model_spec")
-        .agg(
-            rt_s_mean=("rt_s", "mean"),
-            rt_s_median=("rt_s", "median"),
-            rt_s_std=("rt_s", "std"),
-            rt_s_min=("rt_s", "min"),
-            rt_s_max=("rt_s", "max"),
-            rt_setup_s_mean=("rt_setup_s", "mean"),
-            rt_setup_s_median=("rt_setup_s", "median"),
-            rt_setup_s_std=("rt_setup_s", "std"),
-            rt_setup_s_min=("rt_setup_s", "min"),
-            rt_setup_s_max=("rt_setup_s", "max"),
-            rt_initialize_simulants_s_mean=("rt_initialize_simulants_s", "mean"),
-            rt_initialize_simulants_s_median=("rt_initialize_simulants_s", "median"),
-            rt_initialize_simulants_s_std=("rt_initialize_simulants_s", "std"),
-            rt_initialize_simulants_s_min=("rt_initialize_simulants_s", "min"),
-            rt_initialize_simulants_s_max=("rt_initialize_simulants_s", "max"),
-            rt_run_s_mean=("rt_run_s", "mean"),
-            rt_run_s_median=("rt_run_s", "median"),
-            rt_run_s_std=("rt_run_s", "std"),
-            rt_run_s_min=("rt_run_s", "min"),
-            rt_run_s_max=("rt_run_s", "max"),
-            rt_finalize_s_mean=("rt_finalize_s", "mean"),
-            rt_finalize_s_median=("rt_finalize_s", "median"),
-            rt_finalize_s_std=("rt_finalize_s", "std"),
-            rt_finalize_s_min=("rt_finalize_s", "min"),
-            rt_finalize_s_max=("rt_finalize_s", "max"),
-            rt_report_s_mean=("rt_report_s", "mean"),
-            rt_report_s_median=("rt_report_s", "median"),
-            rt_report_s_std=("rt_report_s", "std"),
-            rt_report_s_min=("rt_report_s", "min"),
-            rt_report_s_max=("rt_report_s", "max"),
-            rt_non_run_s_mean=("rt_non_run_s", "mean"),
-            rt_non_run_s_median=("rt_non_run_s", "median"),
-            rt_non_run_s_std=("rt_non_run_s", "std"),
-            rt_non_run_s_min=("rt_non_run_s", "min"),
-            rt_non_run_s_max=("rt_non_run_s", "max"),
-            mem_mb_mean=("mem_mb", "mean"),
-            mem_mb_median=("mem_mb", "median"),
-            mem_mb_std=("mem_mb", "std"),
-            mem_mb_min=("mem_mb", "min"),
-            mem_mb_max=("mem_mb", "max"),
-            gather_results_cumtime_mean=("gather_results_cumtime", "mean"),
-            gather_results_cumtime_median=("gather_results_cumtime", "median"),
-            gather_results_cumtime_std=("gather_results_cumtime", "std"),
-            gather_results_cumtime_min=("gather_results_cumtime", "min"),
-            gather_results_cumtime_max=("gather_results_cumtime", "max"),
-            gather_results_percall_mean=("gather_results_percall", "mean"),
-            gather_results_percall_median=("gather_results_percall", "median"),
-            gather_results_percall_std=("gather_results_percall", "std"),
-            gather_results_percall_min=("gather_results_percall", "min"),
-            gather_results_percall_max=("gather_results_percall", "max"),
-            gather_results_ncalls_mean=("gather_results_ncalls", "mean"),
-            pipeline_call_cumtime_mean=("pipeline_call_cumtime", "mean"),
-            pipeline_call_cumtime_median=("pipeline_call_cumtime", "median"),
-            pipeline_call_cumtime_std=("pipeline_call_cumtime", "std"),
-            pipeline_call_cumtime_min=("pipeline_call_cumtime", "min"),
-            pipeline_call_cumtime_max=("pipeline_call_cumtime", "max"),
-            pipeline_call_percall_mean=("pipeline_call_percall", "mean"),
-            pipeline_call_percall_median=("pipeline_call_percall", "median"),
-            pipeline_call_percall_std=("pipeline_call_percall", "std"),
-            pipeline_call_percall_min=("pipeline_call_percall", "min"),
-            pipeline_call_percall_max=("pipeline_call_percall", "max"),
-            pipeline_call_ncalls_mean=("pipeline_call_ncalls", "mean"),
-            population_get_cumtime_mean=("population_get_cumtime", "mean"),
-            population_get_cumtime_median=("population_get_cumtime", "median"),
-            population_get_cumtime_std=("population_get_cumtime", "std"),
-            population_get_cumtime_min=("population_get_cumtime", "min"),
-            population_get_cumtime_max=("population_get_cumtime", "max"),
-            population_get_percall_mean=("population_get_percall", "mean"),
-            population_get_percall_median=("population_get_percall", "median"),
-            population_get_percall_std=("population_get_percall", "std"),
-            population_get_percall_min=("population_get_percall", "min"),
-            population_get_percall_max=("population_get_percall", "max"),
-            population_get_ncalls_mean=("population_get_ncalls", "mean"),
-            gather_results_fraction_mean=("gather_results_fraction", "mean"),
-            gather_results_fraction_median=("gather_results_fraction", "median"),
-            gather_results_fraction_std=("gather_results_fraction", "std"),
-            gather_results_fraction_min=("gather_results_fraction", "min"),
-            gather_results_fraction_max=("gather_results_fraction", "max"),
-            pipeline_call_fraction_mean=("pipeline_call_fraction", "mean"),
-            pipeline_call_fraction_median=("pipeline_call_fraction", "median"),
-            pipeline_call_fraction_std=("pipeline_call_fraction", "std"),
-            pipeline_call_fraction_min=("pipeline_call_fraction", "min"),
-            pipeline_call_fraction_max=("pipeline_call_fraction", "max"),
-            population_get_fraction_mean=("population_get_fraction", "mean"),
-            population_get_fraction_median=("population_get_fraction", "median"),
-            population_get_fraction_std=("population_get_fraction", "std"),
-            population_get_fraction_min=("population_get_fraction", "min"),
-            population_get_fraction_max=("population_get_fraction", "max"),
-        )
-        .reset_index()
-    )
-    # Calculate differences from baseline (median values)
-    baseline_mem = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "mem_mb_median"
-    ].values[0]
-    baseline_rt = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_s_median"
-    ].values[0]
-    baseline_rt_setup = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_setup_s_median"
-    ].values[0]
-    baseline_rt_initialize_simulants = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_initialize_simulants_s_median"
-    ].values[0]
-    baseline_rt_run = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_run_s_median"
-    ].values[0]
-    baseline_rt_finalize = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_finalize_s_median"
-    ].values[0]
-    baseline_rt_report = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_report_s_median"
-    ].values[0]
-    baseline_rt_non_run = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "rt_non_run_s_median"
-    ].values[0]
-    baseline_gather_results_cumtime = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "gather_results_cumtime_median"
-    ].values[0]
-    baseline_pipeline_call_cumtime = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "pipeline_call_cumtime_median"
-    ].values[0]
-    baseline_population_get_cumtime = summary.loc[
-        summary["model_spec"].str.endswith(BASELINE), "population_get_cumtime_median"
-    ].values[0]
-    summary["mem_pdiff"] = (summary["mem_mb_median"] - baseline_mem) / baseline_mem * 100
-    summary["rt_pdiff"] = (summary["rt_s_median"] - baseline_rt) / baseline_rt * 100
-    summary["rt_setup_pdiff"] = (
-        (summary["rt_setup_s_median"] - baseline_rt_setup) / baseline_rt_setup * 100
-    )
-    summary["rt_initialize_simulants_pdiff"] = (
-        (summary["rt_initialize_simulants_s_median"] - baseline_rt_initialize_simulants)
-        / baseline_rt_initialize_simulants
-        * 100
-    )
-    summary["rt_run_pdiff"] = (
-        (summary["rt_run_s_median"] - baseline_rt_run) / baseline_rt_run * 100
-    )
-    summary["rt_finalize_pdiff"] = (
-        (summary["rt_finalize_s_median"] - baseline_rt_finalize) / baseline_rt_finalize * 100
-    )
-    summary["rt_report_pdiff"] = (
-        (summary["rt_report_s_median"] - baseline_rt_report) / baseline_rt_report * 100
-    )
-    summary["rt_non_run_pdiff"] = (
-        (summary["rt_non_run_s_median"] - baseline_rt_non_run) / baseline_rt_non_run * 100
-    )
-    summary["gather_results_cumtime_pdiff"] = (
-        (summary["gather_results_cumtime_median"] - baseline_gather_results_cumtime)
-        / baseline_gather_results_cumtime
-        * 100
-    )
-    summary["pipeline_call_cumtime_pdiff"] = (
-        (summary["pipeline_call_cumtime_median"] - baseline_pipeline_call_cumtime)
-        / baseline_pipeline_call_cumtime
-        * 100
-    )
-    summary["population_get_cumtime_pdiff"] = (
-        (summary["population_get_cumtime_median"] - baseline_population_get_cumtime)
-        / baseline_population_get_cumtime
-        * 100
-    )
+
+    # Calculate bottleneck fractions of run() time
+    for bottleneck in bottleneck_names:
+        cumtime_col = f"{bottleneck}_cumtime"
+        if cumtime_col in summary.columns:
+            summary[f"{bottleneck}_fraction"] = summary[cumtime_col] / summary["rt_run_s"]
+
+    # Build aggregation dict dynamically
+    agg_dict = {}
+
+    # Base columns to aggregate
+    base_columns = ["rt_s", "mem_mb", "rt_non_run_s"]
+
+    # Add all metric columns from config
+    metric_columns = base_columns + config.metric_columns
+
+    # Add fraction columns
+    fraction_columns = [f"{bn}_fraction" for bn in bottleneck_names]
+
+    # Generate aggregations for all columns
+    for col in metric_columns + fraction_columns:
+        if col in summary.columns:
+            agg_dict[f"{col}_mean"] = (col, "mean")
+            agg_dict[f"{col}_median"] = (col, "median")
+            agg_dict[f"{col}_std"] = (col, "std")
+            agg_dict[f"{col}_min"] = (col, "min")
+            agg_dict[f"{col}_max"] = (col, "max")
+
+    # Perform aggregation
+    summary = summary.groupby("model_spec").agg(**agg_dict).reset_index()
+
+    # Calculate percent differences from baseline (median values)
+    baseline_mask = summary["model_spec"].str.endswith(BASELINE)
+
+    # Get all median columns for pdiff calculation
+    median_cols = [col for col in summary.columns if col.endswith("_median")]
+
+    for median_col in median_cols:
+        # Get baseline value
+        baseline_value = summary.loc[baseline_mask, median_col].values[0]
+
+        # Calculate percent difference
+        pdiff_col = median_col.replace("_median", "_pdiff")
+        summary[pdiff_col] = (summary[median_col] - baseline_value) / baseline_value * 100
 
     # Move the baseline row to the top
     summary = pd.concat(
@@ -221,6 +123,7 @@ def summarize(raw: pd.DataFrame, output_dir: Path) -> pd.DataFrame:
 
 def create_figures(
     df: pd.DataFrame,
+    output_dir: Path,
     chart_title: str,
     time_col: str,
     mem_col: str | None,
@@ -383,7 +286,7 @@ def create_figures(
     print(f"Saved {chart_title}.png'")
 
 
-def plot_bottleneck_fractions(df: pd.DataFrame, metric: str) -> None:
+def plot_bottleneck_fractions(df: pd.DataFrame, output_dir: Path, metric: str) -> None:
 
     df = df.copy()
     # Prepare grouping and scale factors
@@ -501,14 +404,22 @@ def assign_grouped_colors(df: pd.DataFrame) -> list:
     return colors
 
 
-if __name__ == "__main__":
+def run_summarize_analysis(
+    benchmark_results_filepath: Path, config: ExtractionConfig | None = None
+) -> None:
+    """Main function to run full summarize analysis pipeline.
 
-    parser = argparse.ArgumentParser(description="Analyze benchmark results.")
-    parser.add_argument(
-        "benchmark_results_filepath", type=str, help="Path to benchmark_results.csv"
-    )
-    args = parser.parse_args()
-    benchmark_results_filepath = Path(args.benchmark_results_filepath).resolve()
+    Parameters
+    ----------
+    benchmark_results_filepath
+        Path to benchmark_results.csv file.
+    config
+        Extraction configuration. If None, uses default.
+
+    """
+    if config is None:
+        config = ExtractionConfig()
+
     output_dir = benchmark_results_filepath.parent
     print(f"\nProcessing benchmark results from {benchmark_results_filepath}")
     print(f"Summarizing results to {output_dir}\n")
@@ -517,63 +428,81 @@ if __name__ == "__main__":
     if raw.isna().any().any():
         raise ValueError("NaNs found in raw data.")
 
-    summary = summarize(raw, output_dir)
+    summary = summarize(raw, output_dir, config)
 
-    bottleneck_cols = [
-        col for col in summary.columns if any(call in col for call in BOTTLENECKS)
-    ]
-    benchmark_cols = [
-        col
-        for col in summary.columns
-        if col not in bottleneck_cols and not col.startswith("model")
-    ]
-
-    bottlenecks = summary[["model"] + bottleneck_cols]
-    benchmarks = summary[["model"] + benchmark_cols]
-
-    create_figures(benchmarks, "performance_analysis", "rt_s", "mem_mb", "rt_pdiff")
-
-    create_figures(benchmarks, "runtime_analysis_setup", "rt_setup_s", None, "rt_setup_pdiff")
     create_figures(
-        benchmarks,
+        summary, output_dir, "performance_analysis", "rt_s", "mem_mb", "rt_s_pdiff"
+    )
+
+    create_figures(
+        summary,
+        output_dir,
+        "runtime_analysis_setup",
+        "rt_setup_s",
+        None,
+        "rt_setup_s_pdiff",
+    )
+    create_figures(
+        summary,
+        output_dir,
         "runtime_analysis_initialize_simulants",
         "rt_initialize_simulants_s",
         None,
-        "rt_initialize_simulants_pdiff",
-    )
-    create_figures(benchmarks, "runtime_analysis_run", "rt_run_s", None, "rt_run_pdiff")
-    create_figures(
-        benchmarks, "runtime_analysis_finalize", "rt_finalize_s", None, "rt_finalize_pdiff"
+        "rt_initialize_simulants_s_pdiff",
     )
     create_figures(
-        benchmarks, "runtime_analysis_report", "rt_report_s", None, "rt_report_pdiff"
+        summary, output_dir, "runtime_analysis_run", "rt_run_s", None, "rt_run_s_pdiff"
     )
     create_figures(
-        benchmarks, "runtime_analysis_non_run", "rt_non_run_s", None, "rt_non_run_pdiff"
+        summary,
+        output_dir,
+        "runtime_analysis_finalize",
+        "rt_finalize_s",
+        None,
+        "rt_finalize_s_pdiff",
+    )
+    create_figures(
+        summary,
+        output_dir,
+        "runtime_analysis_report",
+        "rt_report_s",
+        None,
+        "rt_report_s_pdiff",
+    )
+    create_figures(
+        summary,
+        output_dir,
+        "runtime_analysis_non_run",
+        "rt_non_run_s",
+        None,
+        "rt_non_run_s_pdiff",
     )
 
     create_figures(
-        bottlenecks,
+        summary,
+        output_dir,
         "bottleneck_runtime_analysis_gather_results",
         "gather_results_cumtime",
         None,
         "gather_results_cumtime_pdiff",
     )
     create_figures(
-        bottlenecks,
+        summary,
+        output_dir,
         "bottleneck_runtime_analysis_pipeline_call",
         "pipeline_call_cumtime",
         None,
         "pipeline_call_cumtime_pdiff",
     )
     create_figures(
-        bottlenecks,
+        summary,
+        output_dir,
         "bottleneck_runtime_analysis_population_get",
         "population_get_cumtime",
         None,
         "population_get_cumtime_pdiff",
     )
 
-    plot_bottleneck_fractions(summary, "median")
+    plot_bottleneck_fractions(summary, output_dir, "median")
 
     print("\n*** FINISHED ***")

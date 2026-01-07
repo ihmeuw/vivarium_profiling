@@ -10,6 +10,7 @@ from __future__ import annotations
 import re
 import subprocess
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
 
 from loguru import logger
@@ -182,21 +183,9 @@ class ExtractionConfig:
         return [pattern.name for pattern in self.patterns]
 
     @property
-    def bottleneck_names(self) -> list[str]:
-        """Get the names of bottleneck patterns (those that extract all 3 metrics)."""
-        return [
-            pattern.name
-            for pattern in self.patterns
-            if pattern.extract_cumtime and pattern.extract_percall and pattern.extract_ncalls
-        ]
-
-    @property
     def metric_columns(self) -> list[str]:
         """Get all column names for the configured patterns."""
-        columns = []
-        for pattern in self.patterns:
-            columns.extend(pattern.columns)
-        return columns
+        return list(chain.from_iterable(pattern.columns for pattern in self.patterns))
 
     @property
     def results_columns(self) -> list[str]:

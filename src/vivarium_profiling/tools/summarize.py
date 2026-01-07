@@ -6,14 +6,14 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from vivarium_profiling.tools.extraction import DEFAULT_CONFIG
+from vivarium_profiling.tools.extraction import DEFAULT_BOTTLENECKS
 
 """Benchmark summarization and visualization utilities."""
 
 
 BASELINE = "model_spec_baseline.yaml"  # Default baseline model spec name
 # Use bottleneck names from extraction module
-BOTTLENECKS = DEFAULT_CONFIG.bottleneck_names
+BOTTLENECKS = [pattern.name for pattern in DEFAULT_BOTTLENECKS]
 
 # Set style for better plots
 plt.style.use("default")

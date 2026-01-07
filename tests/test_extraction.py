@@ -15,9 +15,12 @@ class TestCallPattern:
 
     def test_call_pattern_defaults(self):
         """Test CallPattern with default extraction flags."""
-        pattern = CallPattern(name="test_func", pattern=r"test\.py:\d+\(test_func\)")
+        pattern = CallPattern(name="test_func", filename="test.py", function_name="test_func")
 
         assert pattern.name == "test_func"
+        assert pattern.filename == "test.py"
+        assert pattern.function_name == "test_func"
+        assert pattern.pattern == r"test\.py:\d+\(test_func\)"
         assert pattern.extract_cumtime is True
         assert pattern.extract_percall is False
         assert pattern.extract_ncalls is False
@@ -30,12 +33,14 @@ class TestCallPattern:
         """Test CallPattern with all extraction flags enabled."""
         pattern = CallPattern(
             name="bottleneck",
-            pattern=r"test\.py:\d+\(bottleneck\)",
+            filename="test.py",
+            function_name="bottleneck",
             extract_cumtime=True,
             extract_percall=True,
             extract_ncalls=True,
         )
 
+        assert pattern.pattern == r"test\.py:\d+\(bottleneck\)"
         assert pattern.columns == [
             "bottleneck_cumtime",
             "bottleneck_percall",
@@ -46,10 +51,12 @@ class TestCallPattern:
         """Test CallPattern with custom column templates."""
         pattern = CallPattern(
             name="phase",
-            pattern=r"engine\.py:\d+\(phase\)",
+            filename="engine.py",
+            function_name="phase",
             cumtime_template="rt_{name}_s",
         )
 
+        assert pattern.pattern == r"engine\.py:\d+\(phase\)"
         assert pattern.cumtime_col == "rt_phase_s"
         assert pattern.columns == ["rt_phase_s"]
 
@@ -69,8 +76,8 @@ class TestExtractionConfig:
     def test_extraction_config_custom_patterns(self):
         """Test ExtractionConfig with custom patterns."""
         patterns = [
-            CallPattern("func1", r"test\.py:\d+\(func1\)"),
-            bottleneck_config("func2", r"test\.py:\d+\(func2\)"),
+            CallPattern("func1", "test.py", "func1"),
+            bottleneck_config("func2", "test.py", "func2"),
         ]
         config = ExtractionConfig(patterns=patterns)
 
@@ -80,8 +87,8 @@ class TestExtractionConfig:
     def test_metric_columns(self):
         """Test metric_columns property."""
         patterns = [
-            CallPattern("a", "pattern", extract_cumtime=True, extract_percall=True),
-            CallPattern("b", "pattern", extract_cumtime=True),
+            CallPattern("a", "test.py", "a", extract_cumtime=True, extract_percall=True),
+            CallPattern("b", "test.py", "b", extract_cumtime=True),
         ]
         config = ExtractionConfig(patterns=patterns)
 
@@ -89,7 +96,7 @@ class TestExtractionConfig:
 
     def test_results_columns(self):
         """Test results_columns includes base columns."""
-        patterns = [CallPattern("test", "pattern")]
+        patterns = [CallPattern("test", "test.py", "test")]
         config = ExtractionConfig(patterns=patterns)
 
         cols = config.results_columns
@@ -176,7 +183,8 @@ class TestExtractionConfigExtract:
         patterns = [
             CallPattern(
                 "custom_func",
-                r"some/custom/module\.py:\d+\(custom_function\)",
+                "some/custom/module.py",
+                "custom_function",
                 extract_cumtime=True,
                 extract_ncalls=True,
                 extract_percall=False,
@@ -194,7 +202,7 @@ class TestExtractionConfigExtract:
 
     def test_extract_metrics_missing_patterns(self, sample_stats_file):
         """Test extracting metrics when patterns don't match."""
-        patterns = [CallPattern("missing", r"nonexistent\.py:\d+\(missing\)")]
+        patterns = [CallPattern("missing", "nonexistent.py", "missing")]
         config = ExtractionConfig(patterns=patterns)
         metrics = config.extract_metrics(sample_stats_file)
 

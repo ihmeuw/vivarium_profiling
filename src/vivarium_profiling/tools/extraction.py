@@ -25,10 +25,10 @@ class CallPattern:
     name
         Logical name for the metric (e.g., "gather_results", "setup"). Used as prefix
         for generated column names.
-    pattern
-        Regex pattern to match the function in cProfile stats output.
-        Should match the filename:lineno(function) format, e.g.,
-        r"results/manager\\.py:\\d+\\(gather_results\\)"
+    filename
+        Path pattern to match the source file (e.g., "results/manager.py").
+    function_name
+        Name of the function to match (e.g., "gather_results").
     extract_cumtime
         Whether to extract cumulative time. Default True.
     extract_percall
@@ -45,13 +45,20 @@ class CallPattern:
     """
 
     name: str
-    pattern: str
+    filename: str
+    function_name: str
     extract_cumtime: bool = True
     extract_percall: bool = False
     extract_ncalls: bool = False
     cumtime_template: str = "{name}_cumtime"
     percall_template: str = "{name}_percall"
     ncalls_template: str = "{name}_ncalls"
+
+    @property
+    def pattern(self) -> str:
+        """Regex pattern to match the function in cProfile stats output."""
+        escaped_file = re.escape(self.filename)
+        return rf"{escaped_file}:\d+\({self.function_name}\)"
 
     @property
     def cumtime_col(self) -> str:
@@ -81,15 +88,17 @@ class CallPattern:
         return cols
 
 
-def bottleneck_config(name: str, pattern: str) -> CallPattern:
+def bottleneck_config(name: str, filename: str, function_name: str) -> CallPattern:
     """Create a CallPattern for a bottleneck function (extracts all 3 metrics).
 
     Parameters
     ----------
     name
         Logical name for the bottleneck.
-    pattern
-        Regex pattern to match the function.
+    filename
+        Path pattern to match the source file.
+    function_name
+        Name of the function to match.
 
     Returns
     -------
@@ -98,36 +107,33 @@ def bottleneck_config(name: str, pattern: str) -> CallPattern:
     """
     return CallPattern(
         name=name,
-        pattern=pattern,
+        filename=filename,
+        function_name=function_name,
         extract_cumtime=True,
         extract_percall=True,
         extract_ncalls=True,
     )
 
 
-def phase_config(
-    name: str, file_pattern: str = "/vivarium/framework/engine.py:"
-) -> CallPattern:
+def phase_config(name: str, filename: str = "/vivarium/framework/engine.py") -> CallPattern:
     """Create a CallPattern for a simulation phase (extracts cumtime only).
 
     Parameters
     ----------
     name
         Phase name as it appears in the cProfile output (e.g., "setup", "run").
-    file_pattern
-        Pattern to match the source file containing the phase function.
+    filename
+        Path to match the source file containing the phase function.
 
     Returns
     -------
         CallPattern configured for phase extraction.
 
     """
-    # Build regex pattern: file_pattern + line number + (function_name)
-    escaped_file = re.escape(file_pattern)
-    pattern = rf"{escaped_file}\d+\({name}\)"
     return CallPattern(
         name=name,
-        pattern=pattern,
+        filename=filename,
+        function_name=name,
         extract_cumtime=True,
         extract_percall=False,
         extract_ncalls=False,
@@ -139,15 +145,18 @@ def phase_config(
 DEFAULT_BOTTLENECKS = [
     bottleneck_config(
         name="gather_results",
-        pattern=r"results/manager\.py:\d+\(gather_results\)",
+        filename="results/manager.py",
+        function_name="gather_results",
     ),
     bottleneck_config(
         name="pipeline_call",
-        pattern=r"values/pipeline\.py:\d+\(__call__\)",
+        filename="values/pipeline.py",
+        function_name="__call__",
     ),
     bottleneck_config(
         name="population_get",
-        pattern=r"population/population_view\.py:\d+\(get\)",
+        filename="population/population_view.py",
+        function_name="get",
     ),
 ]
 

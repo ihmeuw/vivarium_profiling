@@ -117,7 +117,12 @@ def summarize(
     summary_path = output_dir / "summary.csv"
     summary.to_csv(summary_path, index=False)
     print("Saved summary.csv")
-    assert not summary.isna().any().any(), "NaNs found in summary data."
+
+    # Check for unexpected NaNs (std columns can be NaN for single observations)
+    non_std_cols = [col for col in summary.columns if not col.endswith("_std")]
+    if summary[non_std_cols].isna().any().any():
+        raise ValueError("Unexpected NaNs found in summary data (excluding std columns).")
+
     return summary
 
 

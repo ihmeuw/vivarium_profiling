@@ -293,9 +293,11 @@ def plot_bottleneck_fractions(
     df = df[df["scale_factor"].notna()]
     base_models = df["base_model"].unique()
 
-    # Get bottlenecks from config (only patterns with extract_percall are bottlenecks)
+    # Get bottlenecks from config
     bottleneck_patterns = [
-        p for p in config.patterns if p.extract_cumtime and p.extract_percall
+        p
+        for p in config.patterns
+        if p.extract_cumtime and p.cumtime_col == f"{p.name}_cumtime"
     ]
 
     for pattern in bottleneck_patterns:

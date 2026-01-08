@@ -44,21 +44,27 @@ def summarize(
     if config is None:
         config = ExtractionConfig()
 
-    bottleneck_names = [p.name for p in config.patterns if p.extract_cumtime]
+    # Only bottlenecks (patterns with default cumtime template) get fraction calculations
+    bottleneck_patterns = [
+        p
+        for p in config.patterns
+        if p.extract_cumtime and p.cumtime_col == f"{p.name}_cumtime"
+    ]
 
     summary = raw.copy()
     summary["rt_non_run_s"] = summary["rt_s"] - summary["rt_run_s"]
 
     # Calculate bottleneck fractions of run() time
-    for bottleneck in bottleneck_names:
-        cumtime_col = f"{bottleneck}_cumtime"
-        if cumtime_col in summary.columns:
-            summary[f"{bottleneck}_fraction"] = summary[cumtime_col] / summary["rt_run_s"]
+    for pattern in bottleneck_patterns:
+        if pattern.cumtime_col in summary.columns:
+            summary[f"{pattern.name}_fraction"] = (
+                summary[pattern.cumtime_col] / summary["rt_run_s"]
+            )
 
     agg_dict = {}
 
     metric_columns = BASE_SUMMARIZE_COLUMNS + config.metric_columns
-    fraction_columns = [f"{bn}_fraction" for bn in bottleneck_names]
+    fraction_columns = [f"{p.name}_fraction" for p in bottleneck_patterns]
 
     for col in metric_columns + fraction_columns:
         if col in summary.columns:

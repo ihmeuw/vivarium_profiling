@@ -4,10 +4,7 @@ import pandas as pd
 from loguru import logger
 
 from vivarium_profiling.tools.extraction import ExtractionConfig
-from vivarium_profiling.tools.plotting import (
-    create_figures,
-    plot_bottleneck_fractions,
-)
+from vivarium_profiling.tools.plotting import create_figures, plot_bottleneck_fractions
 
 """Benchmark summarization and visualization utilities."""
 

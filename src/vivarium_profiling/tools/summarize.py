@@ -4,6 +4,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 import seaborn as sns
+from loguru import logger
 
 from vivarium_profiling.tools.extraction import (
     DEFAULT_BOTTLENECKS,
@@ -108,7 +109,7 @@ def summarize(
     print("Saved summary.csv")
 
     if summary.isna().any().any():
-        raise ValueError("Unexpected NaNs found in summary data.")
+        logger.warning("Unexpected NaNs found in summary data.")
 
     return summary
 

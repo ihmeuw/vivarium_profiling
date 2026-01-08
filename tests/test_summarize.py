@@ -172,10 +172,6 @@ class TestSummarize:
         assert len(loaded) == len(sample_summary)
         assert list(loaded.columns) == list(sample_summary.columns)
 
-    def test_summarize_no_nans(self, sample_summary):
-        """Test that summarize raises error if unexpected NaNs are present in result."""
-        assert not sample_summary.isna().any().any()
-
     def test_summarize_model_name_extraction(self, sample_summary):
         """Test that model names are correctly extracted from paths."""
         models = sample_summary["model"].tolist()

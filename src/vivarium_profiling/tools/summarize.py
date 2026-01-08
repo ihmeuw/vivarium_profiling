@@ -112,7 +112,9 @@ def summarize(
 
 
 def run_summarize_analysis(
-    benchmark_results_filepath: Path, config: ExtractionConfig | None = None
+    benchmark_results_filepath: Path,
+    config: ExtractionConfig | None = None,
+    nb: bool = False,
 ) -> None:
     """Main function to run full summarize analysis pipeline.
 
@@ -122,52 +124,74 @@ def run_summarize_analysis(
         Path to benchmark_results.csv file.
     config
         Extraction configuration. If None, uses default.
+    nb
+        Whether to generate a Jupyter notebook for interactive analysis.
+        If True and summary.csv exists, skip summary generation.
 
     """
     if config is None:
         config = ExtractionConfig()
 
     output_dir = benchmark_results_filepath.parent
+    summary_path = output_dir / "summary.csv"
+
     print(f"\nProcessing benchmark results from {benchmark_results_filepath}")
     print(f"Summarizing results to {output_dir}\n")
 
-    raw = pd.read_csv(benchmark_results_filepath)
-    if raw.isna().any().any():
-        raise ValueError("NaNs found in raw data.")
+    # Skip summary generation if notebook requested and summary exists
+    if nb and summary_path.exists():
+        print(f"Summary file already exists: {summary_path}")
+        print("Skipping summary generation...\n")
+        summary = pd.read_csv(summary_path)
+    else:
+        raw = pd.read_csv(benchmark_results_filepath)
+        if raw.isna().any().any():
+            raise ValueError("NaNs found in raw data.")
 
-    summary = summarize(raw, output_dir, config)
+        summary = summarize(raw, output_dir, config)
 
-    # Generate main performance analysis with memory
-    create_figures(
-        summary, output_dir, "performance_analysis", "rt_s", "mem_mb", "rt_s_pdiff"
-    )
+    # Generate static plots (unless notebook-only mode)
+    if not nb:
+        # Generate main performance analysis with memory
+        create_figures(
+            summary, output_dir, "performance_analysis", "rt_s", "mem_mb", "rt_s_pdiff"
+        )
 
-    # Generate plots for all cumtime metrics from config
-    for pattern in config.patterns:
-        if pattern.extract_cumtime:
-            time_col = pattern.cumtime_col
-            time_pdiff_col = f"{time_col}_pdiff"
-            chart_title = f"runtime_analysis_{pattern.name}"
-            create_figures(
-                summary,
-                output_dir,
-                chart_title,
-                time_col,
-                None,
-                time_pdiff_col,
-            )
+        # Generate plots for all cumtime metrics from config
+        for pattern in config.patterns:
+            if pattern.extract_cumtime:
+                time_col = pattern.cumtime_col
+                time_pdiff_col = f"{time_col}_pdiff"
+                chart_title = f"runtime_analysis_{pattern.name}"
+                create_figures(
+                    summary,
+                    output_dir,
+                    chart_title,
+                    time_col,
+                    None,
+                    time_pdiff_col,
+                )
 
-    # Generate plot for non-run time (computed metric, not in patterns)
-    create_figures(
-        summary,
-        output_dir,
-        "runtime_analysis_non_run",
-        "rt_non_run_s",
-        None,
-        "rt_non_run_s_pdiff",
-    )
+        # Generate plot for non-run time (computed metric, not in patterns)
+        create_figures(
+            summary,
+            output_dir,
+            "runtime_analysis_non_run",
+            "rt_non_run_s",
+            None,
+            "rt_non_run_s_pdiff",
+        )
 
-    # Generate bottleneck fraction plots
-    plot_bottleneck_fractions(summary, output_dir, config)
+        # Generate bottleneck fraction plots
+        plot_bottleneck_fractions(summary, output_dir, config)
+
+    # Generate Jupyter notebook if requested
+    if nb:
+        from vivarium_profiling.tools.notebook_generator import create_analysis_notebook
+
+        notebook_path = output_dir / "analysis.ipynb"
+        create_analysis_notebook(
+            benchmark_results_filepath, summary_path, notebook_path)
+        print(f"\nCreated interactive notebook: {notebook_path}")
 
     print("\n*** FINISHED ***")

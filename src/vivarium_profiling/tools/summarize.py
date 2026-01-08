@@ -4,10 +4,11 @@ import pandas as pd
 from loguru import logger
 
 from vivarium_profiling.tools.extraction import ExtractionConfig
-from vivarium_profiling.tools.plotting import (
-    create_figures,
-    plot_bottleneck_fractions,
+from vivarium_profiling.tools.notebook_generator import (
+    NOTEBOOK_NAME,
+    create_analysis_notebook,
 )
+from vivarium_profiling.tools.plotting import create_figures, plot_bottleneck_fractions
 
 """Benchmark summarization and visualization utilities."""
 
@@ -138,20 +139,19 @@ def run_summarize_analysis(
     print(f"\nProcessing benchmark results from {benchmark_results_filepath}")
     print(f"Summarizing results to {output_dir}\n")
 
-    # Skip summary generation if notebook requested and summary exists
-    if nb and summary_path.exists():
-        print(f"Summary file already exists: {summary_path}")
-        print("Skipping summary generation...\n")
-        summary = pd.read_csv(summary_path)
+    raw = pd.read_csv(benchmark_results_filepath)
+    if raw.isna().any().any():
+        raise ValueError("NaNs found in raw data.")
+
+    summary = summarize(raw, output_dir, config)
+
+    # Generate Jupyter notebook if requested
+    if nb:
+        notebook_path = output_dir / NOTEBOOK_NAME
+        create_analysis_notebook(benchmark_results_filepath, summary_path, notebook_path)
+
+    # Generate static plots
     else:
-        raw = pd.read_csv(benchmark_results_filepath)
-        if raw.isna().any().any():
-            raise ValueError("NaNs found in raw data.")
-
-        summary = summarize(raw, output_dir, config)
-
-    # Generate static plots (unless notebook-only mode)
-    if not nb:
         # Generate main performance analysis with memory
         create_figures(
             summary, output_dir, "performance_analysis", "rt_s", "mem_mb", "rt_s_pdiff"
@@ -185,13 +185,6 @@ def run_summarize_analysis(
         # Generate bottleneck fraction plots
         plot_bottleneck_fractions(summary, output_dir, config)
 
-    # Generate Jupyter notebook if requested
-    if nb:
-        from vivarium_profiling.tools.notebook_generator import create_analysis_notebook
-
-        notebook_path = output_dir / "analysis.ipynb"
-        create_analysis_notebook(
-            benchmark_results_filepath, summary_path, notebook_path)
         print(f"\nCreated interactive notebook: {notebook_path}")
 
     print("\n*** FINISHED ***")

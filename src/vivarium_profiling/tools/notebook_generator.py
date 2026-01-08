@@ -6,7 +6,8 @@ import nbformat as nbf
 from loguru import logger
 
 from vivarium_profiling.templates import ANALYSIS_NOTEBOOK_TEMPLATE
-from vivarium_profiling.tools.extraction import ExtractionConfig
+
+NOTEBOOK_NAME = "analysis.ipynb"
 
 
 def create_analysis_notebook(

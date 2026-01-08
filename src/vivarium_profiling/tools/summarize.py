@@ -6,10 +6,7 @@ import pandas as pd
 import seaborn as sns
 from loguru import logger
 
-from vivarium_profiling.tools.extraction import (
-    DEFAULT_BOTTLENECKS,
-    ExtractionConfig,
-)
+from vivarium_profiling.tools.extraction import DEFAULT_BOTTLENECKS, ExtractionConfig
 
 """Benchmark summarization and visualization utilities."""
 

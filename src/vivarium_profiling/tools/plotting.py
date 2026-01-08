@@ -5,16 +5,209 @@ import numpy as np
 import pandas as pd
 import seaborn as sns
 
-from vivarium_profiling.tools.extraction import DEFAULT_BOTTLENECKS
+from vivarium_profiling.tools.extraction import ExtractionConfig
 
 """Benchmark visualization utilities."""
-
-# Use bottleneck names from extraction module
-BOTTLENECKS = [pattern.name for pattern in DEFAULT_BOTTLENECKS]
 
 # Set style for better plots
 plt.style.use("default")
 sns.set_palette("husl")
+
+
+def _plot_runtime_bars(ax: plt.Axes, df: pd.DataFrame, time_col: str, colors: list) -> None:
+    """Plot runtime bar chart.
+
+    Parameters
+    ----------
+    ax
+        Matplotlib axes to plot on.
+    df
+        DataFrame with model data (already sorted).
+    time_col
+        Column name for time metric.
+    colors
+        List of colors for bars.
+
+    """
+    bars = ax.bar(range(len(df)), df[f"{time_col}_median"], color=colors)
+    ax.set_title("Runtime by Model", fontweight="bold")
+    ax.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
+    ax.set_ylabel("Median Runtime (seconds)")
+    ax.set_xticks(range(len(df)))
+    ax.set_xticklabels(df["model"], rotation=45, ha="right")
+    # Add value labels on bars
+    for _, bar in enumerate(bars):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{height:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+
+def _plot_memory_bars(ax: plt.Axes, df: pd.DataFrame, mem_col: str, colors: list) -> None:
+    """Plot memory bar chart.
+
+    Parameters
+    ----------
+    ax
+        Matplotlib axes to plot on.
+    df
+        DataFrame with model data (already sorted).
+    mem_col
+        Column name for memory metric.
+    colors
+        List of colors for bars.
+
+    """
+    bars = ax.bar(range(len(df)), df[f"{mem_col}_median"], color=colors)
+    ax.set_title("Peak Memory Usage by Model", fontweight="bold")
+    ax.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
+    ax.set_ylabel("Median Peak Memory (MB)")
+    ax.set_xticks(range(len(df)))
+    ax.set_xticklabels(df["model"], rotation=45, ha="right")
+    # Add value labels on bars
+    for _, bar in enumerate(bars):
+        height = bar.get_height()
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height + 2,
+            f"{height:.0f}MB",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
+
+
+def _plot_scatter(
+    ax: plt.Axes, df: pd.DataFrame, time_col: str, mem_col: str, colors: list
+) -> None:
+    """Plot runtime vs memory scatter with error bars.
+
+    Parameters
+    ----------
+    ax
+        Matplotlib axes to plot on.
+    df
+        DataFrame with model data (already sorted).
+    time_col
+        Column name for time metric.
+    mem_col
+        Column name for memory metric.
+    colors
+        List of colors for points.
+
+    """
+    ax.set_xlabel("Mean Runtime (seconds)")
+    ax.set_ylabel("Mean Peak Memory (MB)")
+    ax.set_title("Mean Runtime vs Mean Peak Memory Usage", fontweight="bold")
+    ax.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
+    for i, row in df.iterrows():
+        ax.errorbar(
+            row[f"{time_col}_mean"],
+            row[f"{mem_col}_mean"],
+            xerr=row[f"{time_col}_std"],
+            yerr=row[f"{mem_col}_std"],
+            fmt="o",
+            color=colors[i],
+            ecolor=colors[i],
+            elinewidth=1.5,
+            capsize=3,
+            markersize=8,
+            alpha=0.7,
+            linestyle="none",
+        )
+        # Add model labels to scatter points
+        ax.annotate(
+            row["model"],
+            (row[f"{time_col}_mean"], row[f"{mem_col}_mean"]),
+            xytext=(5, 5),
+            textcoords="offset points",
+            fontsize=8,
+            alpha=0.8,
+            color="black",
+        )
+
+
+def _plot_scale_factor(
+    ax: plt.Axes, df: pd.DataFrame, time_pdiff_col: str, colors: list
+) -> None:
+    """Plot runtime percent difference vs scale factor.
+
+    Parameters
+    ----------
+    ax
+        Matplotlib axes to plot on.
+    df
+        DataFrame with model data (already sorted, with base_model and scale_factor).
+    time_pdiff_col
+        Column name for time percent difference.
+    colors
+        List of colors for lines.
+
+    """
+    ax.set_title("Runtime % Difference vs Scale Factor", fontweight="bold")
+    ax.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
+    ax.set_xlabel("Scale Factor")
+    ax.set_ylabel("Median Runtime % Difference")
+
+    # Filter to only models with valid scale factors
+    valid_models = df[df["scale_factor"].notna()]
+    base_models = valid_models["base_model"].unique()
+
+    for base_model in base_models:
+        if base_model == "baseline":
+            continue  # Skip baseline as it's the origin point
+
+        model_group = valid_models[valid_models["base_model"] == base_model].sort_values(
+            "scale_factor"
+        )
+
+        # Get color for this model type
+        first_idx = df[df["base_model"] == base_model].index[0]
+        line_color = colors[first_idx]
+
+        # Prepare data for line plot (include baseline point at (1.0, 0))
+        scale_factors = [1.0] + model_group["scale_factor"].tolist()
+        pdiffs = [0.0] + model_group[time_pdiff_col].tolist()
+        sorted_indices = np.argsort(scale_factors)
+        scale_factors = np.array(scale_factors)[sorted_indices]
+        pdiffs = np.array(pdiffs)[sorted_indices]
+
+        # Plot line connecting all points for this model type
+        ax.plot(
+            scale_factors,
+            pdiffs,
+            color=line_color,
+            alpha=0.6,
+            linewidth=2,
+            marker="o",
+            markersize=6,
+        )
+
+        # Add label at the end of the line with just the base model name
+        last_scale_factor = model_group["scale_factor"].iloc[-1]
+        last_pdiff = model_group[time_pdiff_col].iloc[-1]
+        ax.annotate(
+            base_model,
+            (last_scale_factor, last_pdiff),
+            xytext=(8, 8),
+            textcoords="offset points",
+            fontsize=9,
+            alpha=0.9,
+            color="black",
+        )
+
+    # Add baseline point at (1.0, 0)
+    ax.scatter(1.0, 0.0, color="gray", s=100, alpha=0.7, marker="o")
+
+    # Add dashed linear reference line: (1.0, 0), (2.0, 100), (4.0, 300)
+    ref_x = [1.0, 16.0]
+    ref_y = [0, 1500]
+    ax.plot(ref_x, ref_y, "--", color="gray", alpha=0.8, linewidth=2)
 
 
 def create_figures(
@@ -47,151 +240,25 @@ def create_figures(
     # Create figure with subplots
     if mem_col:
         _, axes = plt.subplots(2, 2, figsize=(16, 12))
-        # fig.suptitle('Performance Analysis', fontsize=12, fontweight='bold')
     else:
         _, axes = plt.subplots(1, 2, figsize=(16, 12))
-        # fig.suptitle('Bottleneck Analysis', fontsize=12, fontweight='bold')
 
     df_sorted = group_models_by_type(df)
     colors = assign_grouped_colors(df_sorted)
 
     # 1. Runtime comparison
     axes1 = axes[0, 0] if mem_col else axes[0]
-    bars1 = axes1.bar(range(len(df_sorted)), df_sorted[f"{time_col}_median"], color=colors)
-    axes1.set_title("Runtime by Model", fontweight="bold")
-    axes1.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
-    # axes1.set_xlabel('Model')
-    axes1.set_ylabel("Median Runtime (seconds)")
-    axes1.set_xticks(range(len(df_sorted)))
-    axes1.set_xticklabels(df_sorted["model"], rotation=45, ha="right")
-    # Add value labels on bars
-    for _, bar in enumerate(bars1):
-        height = bar.get_height()
-        axes1.text(
-            bar.get_x() + bar.get_width() / 2.0,
-            height,
-            f"{height:.1f}",
-            ha="center",
-            va="bottom",
-            fontsize=8,
-        )
+    _plot_runtime_bars(axes1, df_sorted, time_col, colors)
 
-    # 2. Peak memory comparison
+    # 2. Peak memory comparison (if applicable)
     if mem_col:
-        bars2 = axes[0, 1].bar(
-            range(len(df_sorted)), df_sorted[f"{mem_col}_median"], color=colors
-        )
-        axes[0, 1].set_title("Peak Memory Usage by Model", fontweight="bold")
-        axes[0, 1].grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
-        # axes[0,1].set_xlabel('Model')
-        axes[0, 1].set_ylabel("Median Peak Memory (MB)")
-        axes[0, 1].set_xticks(range(len(df_sorted)))
-        axes[0, 1].set_xticklabels(df_sorted["model"], rotation=45, ha="right")
-        # Add value labels on bars
-        for _, bar in enumerate(bars2):
-            height = bar.get_height()
-            axes[0, 1].text(
-                bar.get_x() + bar.get_width() / 2.0,
-                height + 2,
-                f"{height:.0f}MB",
-                ha="center",
-                va="bottom",
-                fontsize=8,
-            )
-
-        # 3. Runtime vs Memory scatter plot with error bars - use grouped colors
-        # Add error bars for standard deviations
-        axes[1, 0].set_xlabel("Mean Runtime (seconds)")
-        axes[1, 0].set_ylabel("Mean Peak Memory (MB)")
-        axes[1, 0].set_title("Mean Runtime vs Mean Peak Memory Usage", fontweight="bold")
-        axes[1, 0].grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
-        for i, row in df_sorted.iterrows():
-            axes[1, 0].errorbar(
-                row[f"{time_col}_mean"],
-                row[f"{mem_col}_mean"],
-                xerr=row[f"{time_col}_std"],
-                yerr=row[f"{mem_col}_std"],
-                fmt="o",
-                color=colors[i],
-                ecolor=colors[i],
-                elinewidth=1.5,
-                capsize=3,
-                markersize=8,
-                alpha=0.7,
-                linestyle="none",
-            )
-            # Add model labels to scatter points
-            axes[1, 0].annotate(
-                row["model"],
-                (row[f"{time_col}_mean"], row[f"{mem_col}_mean"]),
-                xytext=(5, 5),
-                textcoords="offset points",
-                fontsize=8,
-                alpha=0.8,
-                color="black",
-            )
+        _plot_memory_bars(axes[0, 1], df_sorted, mem_col, colors)
+        # 3. Runtime vs Memory scatter plot
+        _plot_scatter(axes[1, 0], df_sorted, time_col, mem_col, colors)
 
     # 4. Plot runtime percent differences vs scale factor
     axes4 = axes[1, 1] if mem_col else axes[1]
-    axes4.set_title("Runtime % Difference vs Scale Factor", fontweight="bold")
-    axes4.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
-    axes4.set_xlabel("Scale Factor")
-    axes4.set_ylabel("Median Runtime % Difference")
-
-    # Filter to only models with valid scale factors
-    valid_models = df_sorted[df_sorted["scale_factor"].notna()]
-    base_models = valid_models["base_model"].unique()
-
-    for base_model in base_models:
-        if base_model == "baseline":
-            continue  # Skip baseline as it's the origin point
-
-        model_group = valid_models[valid_models["base_model"] == base_model].sort_values(
-            "scale_factor"
-        )
-
-        # Get color for this model type
-        first_idx = df_sorted[df_sorted["base_model"] == base_model].index[0]
-        line_color = colors[first_idx]
-
-        # Prepare data for line plot (include baseline point at (1.0, 0))
-        scale_factors = [1.0] + model_group["scale_factor"].tolist()
-        pdiffs = [0.0] + model_group[time_pdiff_col].tolist()
-        sorted_indices = np.argsort(scale_factors)
-        scale_factors = np.array(scale_factors)[sorted_indices]
-        pdiffs = np.array(pdiffs)[sorted_indices]
-
-        # Plot line connecting all points for this model type
-        axes4.plot(
-            scale_factors,
-            pdiffs,
-            color=line_color,
-            alpha=0.6,
-            linewidth=2,
-            marker="o",
-            markersize=6,
-        )
-
-        # Add label at the end of the line with just the base model name
-        last_scale_factor = model_group["scale_factor"].iloc[-1]
-        last_pdiff = model_group[time_pdiff_col].iloc[-1]
-        axes4.annotate(
-            base_model,
-            (last_scale_factor, last_pdiff),
-            xytext=(8, 8),
-            textcoords="offset points",
-            fontsize=9,
-            alpha=0.9,
-            color="black",
-        )
-
-    # Add baseline point at (1.0, 0)
-    axes4.scatter(1.0, 0.0, color="gray", s=100, alpha=0.7, marker="o")
-
-    # Add dashed linear reference line: (1.0, 0), (2.0, 100), (4.0, 300)
-    ref_x = [1.0, 16.0]
-    ref_y = [0, 1500]
-    axes4.plot(ref_x, ref_y, "--", color="gray", alpha=0.8, linewidth=2)
+    _plot_scale_factor(axes4, df_sorted, time_pdiff_col, colors)
 
     # save out
     plt.tight_layout()
@@ -200,7 +267,9 @@ def create_figures(
     print(f"Saved {chart_title}.png'")
 
 
-def plot_bottleneck_fractions(df: pd.DataFrame, output_dir: Path, metric: str) -> None:
+def plot_bottleneck_fractions(
+    df: pd.DataFrame, output_dir: Path, config: ExtractionConfig, metric: str = "median"
+) -> None:
     """Plot bottleneck fractions vs scale factor.
 
     Parameters
@@ -209,8 +278,10 @@ def plot_bottleneck_fractions(df: pd.DataFrame, output_dir: Path, metric: str) -
         Summary DataFrame with bottleneck fraction columns.
     output_dir
         Directory to save the figures.
+    config
+        Extraction configuration defining which bottlenecks to plot.
     metric
-        Metric to plot (e.g., 'median', 'mean').
+        Metric to plot (e.g., 'median', 'mean'). Default 'median'.
 
     """
     df = df.copy()
@@ -222,11 +293,16 @@ def plot_bottleneck_fractions(df: pd.DataFrame, output_dir: Path, metric: str) -
     df = df[df["scale_factor"].notna()]
     base_models = df["base_model"].unique()
 
-    for bottleneck in BOTTLENECKS:
-        y_col = f"{bottleneck}_fraction_{metric}"
+    # Get bottlenecks from config (only patterns with extract_percall are bottlenecks)
+    bottleneck_patterns = [
+        p for p in config.patterns if p.extract_cumtime and p.extract_percall
+    ]
+
+    for pattern in bottleneck_patterns:
+        y_col = f"{pattern.name}_fraction_{metric}"
 
         fig, ax = plt.subplots(figsize=(8, 5), constrained_layout=True)
-        ax.set_title(f"{bottleneck} fraction vs scale factor", fontweight="bold")
+        ax.set_title(f"{pattern.name} fraction vs scale factor", fontweight="bold")
         ax.set_xlabel("Scale factor")
         ax.set_ylabel(f"{metric.capitalize()} fraction of run_simulation.run()")
         ax.grid(True, color="lightgray", alpha=0.7, linestyle="-", linewidth=0.5)
@@ -296,7 +372,7 @@ def plot_bottleneck_fractions(df: pd.DataFrame, output_dir: Path, metric: str) -
         # if base_models:
         #     ax.legend(frameon=False, fontsize=8, ncols=2)
 
-        out_path = output_dir / f"bottleneck_fraction_{bottleneck}.png"
+        out_path = output_dir / f"bottleneck_fraction_{pattern.name}.png"
         fig.savefig(out_path, dpi=300, bbox_inches="tight")
         plt.close(fig)
         print(f"Saved {out_path.name}")

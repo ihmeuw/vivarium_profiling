@@ -131,45 +131,27 @@ def run_summarize_analysis(
 
     summary = summarize(raw, output_dir, config)
 
+    # Generate main performance analysis with memory
     create_figures(
         summary, output_dir, "performance_analysis", "rt_s", "mem_mb", "rt_s_pdiff"
     )
 
-    create_figures(
-        summary,
-        output_dir,
-        "runtime_analysis_setup",
-        "rt_setup_s",
-        None,
-        "rt_setup_s_pdiff",
-    )
-    create_figures(
-        summary,
-        output_dir,
-        "runtime_analysis_initialize_simulants",
-        "rt_initialize_simulants_s",
-        None,
-        "rt_initialize_simulants_s_pdiff",
-    )
-    create_figures(
-        summary, output_dir, "runtime_analysis_run", "rt_run_s", None, "rt_run_s_pdiff"
-    )
-    create_figures(
-        summary,
-        output_dir,
-        "runtime_analysis_finalize",
-        "rt_finalize_s",
-        None,
-        "rt_finalize_s_pdiff",
-    )
-    create_figures(
-        summary,
-        output_dir,
-        "runtime_analysis_report",
-        "rt_report_s",
-        None,
-        "rt_report_s_pdiff",
-    )
+    # Generate plots for all cumtime metrics from config
+    for pattern in config.patterns:
+        if pattern.extract_cumtime:
+            time_col = pattern.cumtime_col
+            time_pdiff_col = f"{time_col}_pdiff"
+            chart_title = f"runtime_analysis_{pattern.name}"
+            create_figures(
+                summary,
+                output_dir,
+                chart_title,
+                time_col,
+                None,
+                time_pdiff_col,
+            )
+
+    # Generate plot for non-run time (computed metric, not in patterns)
     create_figures(
         summary,
         output_dir,
@@ -179,31 +161,7 @@ def run_summarize_analysis(
         "rt_non_run_s_pdiff",
     )
 
-    create_figures(
-        summary,
-        output_dir,
-        "bottleneck_runtime_analysis_gather_results",
-        "gather_results_cumtime",
-        None,
-        "gather_results_cumtime_pdiff",
-    )
-    create_figures(
-        summary,
-        output_dir,
-        "bottleneck_runtime_analysis_pipeline_call",
-        "pipeline_call_cumtime",
-        None,
-        "pipeline_call_cumtime_pdiff",
-    )
-    create_figures(
-        summary,
-        output_dir,
-        "bottleneck_runtime_analysis_population_get",
-        "population_get_cumtime",
-        None,
-        "population_get_cumtime_pdiff",
-    )
-
-    plot_bottleneck_fractions(summary, output_dir, "median")
+    # Generate bottleneck fraction plots
+    plot_bottleneck_fractions(summary, output_dir, config)
 
     print("\n*** FINISHED ***")

@@ -93,14 +93,14 @@ class TestSummarize:
         """Test that summarize calculates correct statistics."""
         baseline = sample_summary[sample_summary["model"] == "baseline"].iloc[0]
 
-        # Check mean/median/std/min/max calculations for rt_s
+        # Runtime
         assert baseline["rt_s_mean"] == pytest.approx(11.0)
         assert baseline["rt_s_median"] == pytest.approx(11.0)
         assert baseline["rt_s_std"] == pytest.approx(1.0)
         assert baseline["rt_s_min"] == pytest.approx(10.0)
         assert baseline["rt_s_max"] == pytest.approx(12.0)
 
-        # Check for mem_mb
+        # Memory
         assert baseline["mem_mb_mean"] == pytest.approx(102.333, rel=0.01)
         assert baseline["mem_mb_median"] == pytest.approx(102.0)
 
@@ -116,7 +116,6 @@ class TestSummarize:
         """Test that summarize calculates bottleneck fractions correctly."""
         baseline = sample_summary[sample_summary["model"] == "baseline"].iloc[0]
 
-        # Check fraction columns exist
         assert "gather_results_fraction_mean" in sample_summary.columns
         assert "pipeline_call_fraction_mean" in sample_summary.columns
         assert "population_get_fraction_mean" in sample_summary.columns
@@ -161,33 +160,24 @@ class TestSummarize:
         """Test summarize with custom extraction config."""
         summary = summarize(sample_benchmark_data, tmp_path, minimal_extraction_config)
 
-        # Should still work with custom config
         assert len(summary) == 2
         assert "model" in summary.columns
-
-        # Check that bottleneck fractions are calculated for patterns in config
         assert "gather_results_fraction_median" in summary.columns
 
     def test_summarize_saves_csv(self, sample_summary, tmp_path):
         """Test that summarize saves summary.csv file."""
         summary_file = tmp_path / "summary.csv"
         assert summary_file.exists()
-
-        # Verify we can read it back
         loaded = pd.read_csv(summary_file)
         assert len(loaded) == len(sample_summary)
         assert list(loaded.columns) == list(sample_summary.columns)
 
     def test_summarize_no_nans(self, sample_summary):
         """Test that summarize raises error if unexpected NaNs are present in result."""
-        # Should not contain any NaN values in non-std columns
-        # (std columns can be NaN for single observations, which is expected)
-        non_std_cols = [col for col in sample_summary.columns if not col.endswith("_std")]
-        assert not sample_summary[non_std_cols].isna().any().any()
+        assert not sample_summary.isna().any().any()
 
     def test_summarize_model_name_extraction(self, sample_summary):
         """Test that model names are correctly extracted from paths."""
-        # Check model names
         models = sample_summary["model"].tolist()
         assert "baseline" in models
         assert "pop_2x" in models
@@ -199,7 +189,6 @@ class TestSummarize:
 
         summary = summarize(data, tmp_path)
 
-        # Should still work, just without that column's aggregations
         assert len(summary) == 2
         assert "population_get_cumtime_median" in summary.columns
         assert "population_get_ncalls_mean" not in summary.columns
@@ -228,8 +217,8 @@ class TestSummarize:
         assert baseline["rt_s_median"] == 10.0
         assert baseline["rt_s_min"] == 10.0
         assert baseline["rt_s_max"] == 10.0
-        # std should be NaN for single value (this is expected pandas behavior)
-        assert pd.isna(baseline["rt_s_std"])
+        # std should be 0.0 for single value
+        assert baseline["rt_s_std"] == 0.0
 
     def test_summarize_preserves_column_order(self, sample_summary):
         """Test that model_spec and model are first columns."""

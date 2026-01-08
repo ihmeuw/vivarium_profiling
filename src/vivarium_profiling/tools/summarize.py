@@ -12,8 +12,9 @@ from vivarium_profiling.tools.extraction import (
 
 """Benchmark summarization and visualization utilities."""
 
-
 BASELINE = "model_spec_baseline.yaml"  # Default baseline model spec name
+BASE_SUMMARIZE_COLUMNS = ["rt_s", "mem_mb", "rt_non_run_s"]
+
 # Use bottleneck names from extraction module
 BOTTLENECKS = [pattern.name for pattern in DEFAULT_BOTTLENECKS]
 
@@ -45,10 +46,8 @@ def summarize(
     if config is None:
         config = ExtractionConfig()
 
-    # Get bottleneck names for fraction calculations
     bottleneck_names = [p.name for p in config.patterns if p.extract_cumtime]
 
-    # Calculate derived columns
     summary = raw.copy()
     summary["rt_non_run_s"] = summary["rt_s"] - summary["rt_run_s"]
 
@@ -58,19 +57,11 @@ def summarize(
         if cumtime_col in summary.columns:
             summary[f"{bottleneck}_fraction"] = summary[cumtime_col] / summary["rt_run_s"]
 
-    # Build aggregation dict dynamically
     agg_dict = {}
 
-    # Base columns to aggregate
-    base_columns = ["rt_s", "mem_mb", "rt_non_run_s"]
-
-    # Add all metric columns from config
-    metric_columns = base_columns + config.metric_columns
-
-    # Add fraction columns
+    metric_columns = BASE_SUMMARIZE_COLUMNS + config.metric_columns
     fraction_columns = [f"{bn}_fraction" for bn in bottleneck_names]
 
-    # Generate aggregations for all columns
     for col in metric_columns + fraction_columns:
         if col in summary.columns:
             agg_dict[f"{col}_mean"] = (col, "mean")
@@ -79,20 +70,18 @@ def summarize(
             agg_dict[f"{col}_min"] = (col, "min")
             agg_dict[f"{col}_max"] = (col, "max")
 
-    # Perform aggregation
     summary = summary.groupby("model_spec").agg(**agg_dict).reset_index()
+
+    # Fill NaN values in std columns with 0 (occurs with single observations)
+    std_cols = [col for col in summary.columns if col.endswith("_std")]
+    summary[std_cols] = summary[std_cols].fillna(0.0)
 
     # Calculate percent differences from baseline (median values)
     baseline_mask = summary["model_spec"].str.endswith(BASELINE)
-
-    # Get all median columns for pdiff calculation
     median_cols = [col for col in summary.columns if col.endswith("_median")]
 
     for median_col in median_cols:
-        # Get baseline value
         baseline_value = summary.loc[baseline_mask, median_col].values[0]
-
-        # Calculate percent difference
         pdiff_col = median_col.replace("_median", "_pdiff")
         summary[pdiff_col] = (summary[median_col] - baseline_value) / baseline_value * 100
 
@@ -118,10 +107,8 @@ def summarize(
     summary.to_csv(summary_path, index=False)
     print("Saved summary.csv")
 
-    # Check for unexpected NaNs (std columns can be NaN for single observations)
-    non_std_cols = [col for col in summary.columns if not col.endswith("_std")]
-    if summary[non_std_cols].isna().any().any():
-        raise ValueError("Unexpected NaNs found in summary data (excluding std columns).")
+    if summary.isna().any().any():
+        raise ValueError("Unexpected NaNs found in summary data.")
 
     return summary
 

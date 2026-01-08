@@ -12,7 +12,9 @@ import subprocess
 from dataclasses import dataclass
 from itertools import chain
 from pathlib import Path
+from typing import Any
 
+import yaml
 from loguru import logger
 
 
@@ -185,6 +187,110 @@ class ExtractionConfig:
         if patterns is None:
             patterns = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
         self.patterns = patterns
+
+    @classmethod
+    def from_yaml(cls, yaml_path: str | Path) -> ExtractionConfig:
+        """Create an ExtractionConfig from a YAML file.
+
+        Parameters
+        ----------
+        yaml_path
+            Path to the YAML configuration file.
+
+        Returns
+        -------
+            ExtractionConfig object with patterns defined in the YAML file.
+
+        Raises
+        ------
+        ValueError
+            If the YAML file is invalid or missing required fields.
+        FileNotFoundError
+            If the YAML file doesn't exist.
+
+        Examples
+        --------
+        YAML format::
+
+            patterns:
+              - name: gather_results
+                preset: bottleneck
+                filename: results/manager.py
+                function_name: gather_results
+
+              - name: setup
+                preset: phase
+                # filename defaults to /vivarium/framework/engine.py for phases
+
+              - name: custom_func
+                filename: my/module.py
+                function_name: my_function
+                extract_cumtime: true
+                extract_percall: true
+                cumtime_template: "custom_{name}_time"
+
+        """
+        yaml_path = Path(yaml_path)
+        if not yaml_path.exists():
+            raise FileNotFoundError(f"YAML config file not found: {yaml_path}")
+
+        with open(yaml_path, "r") as f:
+            config_data = yaml.safe_load(f)
+
+        if not isinstance(config_data, dict) or "patterns" not in config_data:
+            raise ValueError(
+                "YAML file must contain a 'patterns' key with a list of pattern definitions"
+            )
+
+        patterns = []
+        for i, pattern_dict in enumerate(config_data["patterns"]):
+            if not isinstance(pattern_dict, dict):
+                raise ValueError(f"Pattern at index {i} must be a dictionary")
+
+            if "name" not in pattern_dict:
+                raise ValueError(f"Pattern at index {i} is missing required field 'name'")
+
+            name = pattern_dict["name"]
+            preset = pattern_dict.get("preset")
+
+            # Handle preset shortcuts
+            if preset == "bottleneck":
+                if "filename" not in pattern_dict or "function_name" not in pattern_dict:
+                    raise ValueError(
+                        f"Pattern '{name}' with preset='bottleneck' requires "
+                        "'filename' and 'function_name'"
+                    )
+                pattern = bottleneck_config(
+                    name=name,
+                    filename=pattern_dict["filename"],
+                    function_name=pattern_dict["function_name"],
+                )
+            elif preset == "phase":
+                filename = pattern_dict.get("filename", "/vivarium/framework/engine.py")
+                pattern = phase_config(name=name, filename=filename)
+            else:
+                # Custom pattern - require filename and function_name
+                if "filename" not in pattern_dict or "function_name" not in pattern_dict:
+                    raise ValueError(
+                        f"Pattern '{name}' requires 'filename' and 'function_name' fields"
+                    )
+
+                # Extract optional fields with defaults
+                pattern = CallPattern(
+                    name=name,
+                    filename=pattern_dict["filename"],
+                    function_name=pattern_dict["function_name"],
+                    extract_cumtime=pattern_dict.get("extract_cumtime", True),
+                    extract_percall=pattern_dict.get("extract_percall", False),
+                    extract_ncalls=pattern_dict.get("extract_ncalls", False),
+                    cumtime_template=pattern_dict.get("cumtime_template", "{name}_cumtime"),
+                    percall_template=pattern_dict.get("percall_template", "{name}_percall"),
+                    ncalls_template=pattern_dict.get("ncalls_template", "{name}_ncalls"),
+                )
+
+            patterns.append(pattern)
+
+        return cls(patterns=patterns)
 
     @property
     def metric_names(self) -> list[str]:

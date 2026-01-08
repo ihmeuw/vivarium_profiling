@@ -1,5 +1,10 @@
 """Unit tests for extraction utilities."""
 
+import tempfile
+from pathlib import Path
+
+import pytest
+
 from vivarium_profiling.tools.extraction import (
     CallPattern,
     ExtractionConfig,
@@ -207,3 +212,226 @@ class TestExtractionConfigExtract:
         metrics = config.extract_metrics(sample_stats_file)
 
         assert metrics["missing_cumtime"] is None
+
+
+class TestYAMLParsing:
+    """Tests for YAML configuration parsing."""
+
+    def test_from_yaml_bottleneck_preset(self):
+        """Test parsing YAML with bottleneck preset."""
+        yaml_content = """
+patterns:
+  - name: gather_results
+    preset: bottleneck
+    filename: results/manager.py
+    function_name: gather_results
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            config = ExtractionConfig.from_yaml(yaml_path)
+            
+            assert len(config.patterns) == 1
+            pattern = config.patterns[0]
+            assert pattern.name == "gather_results"
+            assert pattern.filename == "results/manager.py"
+            assert pattern.function_name == "gather_results"
+            assert pattern.extract_cumtime is True
+            assert pattern.extract_percall is True
+            assert pattern.extract_ncalls is True
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_phase_preset(self):
+        """Test parsing YAML with phase preset."""
+        yaml_content = """
+patterns:
+  - name: setup
+    preset: phase
+  - name: custom_phase
+    preset: phase
+    filename: /my/custom/engine.py
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            config = ExtractionConfig.from_yaml(yaml_path)
+            
+            assert len(config.patterns) == 2
+            
+            # First pattern with default filename
+            pattern1 = config.patterns[0]
+            assert pattern1.name == "setup"
+            assert pattern1.filename == "/vivarium/framework/engine.py"
+            assert pattern1.function_name == "setup"
+            assert pattern1.extract_cumtime is True
+            assert pattern1.extract_percall is False
+            assert pattern1.extract_ncalls is False
+            assert pattern1.cumtime_template == "rt_{name}_s"
+            
+            # Second pattern with custom filename
+            pattern2 = config.patterns[1]
+            assert pattern2.name == "custom_phase"
+            assert pattern2.filename == "/my/custom/engine.py"
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_custom_pattern(self):
+        """Test parsing YAML with custom pattern (no preset)."""
+        yaml_content = """
+patterns:
+  - name: my_function
+    filename: my/module.py
+    function_name: my_function
+    extract_cumtime: true
+    extract_percall: true
+    extract_ncalls: false
+    cumtime_template: "custom_{name}_time"
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            config = ExtractionConfig.from_yaml(yaml_path)
+            
+            assert len(config.patterns) == 1
+            pattern = config.patterns[0]
+            assert pattern.name == "my_function"
+            assert pattern.filename == "my/module.py"
+            assert pattern.function_name == "my_function"
+            assert pattern.extract_cumtime is True
+            assert pattern.extract_percall is True
+            assert pattern.extract_ncalls is False
+            assert pattern.cumtime_col == "custom_my_function_time"
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_mixed_patterns(self):
+        """Test parsing YAML with mixed preset and custom patterns."""
+        yaml_content = """
+patterns:
+  - name: gather_results
+    preset: bottleneck
+    filename: results/manager.py
+    function_name: gather_results
+  - name: setup
+    preset: phase
+  - name: custom_func
+    filename: custom.py
+    function_name: custom_func
+    extract_cumtime: true
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            config = ExtractionConfig.from_yaml(yaml_path)
+            
+            assert len(config.patterns) == 3
+            assert config.patterns[0].extract_percall is True  # bottleneck
+            assert config.patterns[1].cumtime_template == "rt_{name}_s"  # phase
+            assert config.patterns[2].extract_cumtime is True  # custom
+            assert config.patterns[2].extract_percall is False  # custom default
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_file_not_found(self):
+        """Test error when YAML file doesn't exist."""
+        with pytest.raises(FileNotFoundError, match="YAML config file not found"):
+            ExtractionConfig.from_yaml("/nonexistent/file.yaml")
+
+    def test_from_yaml_missing_patterns_key(self):
+        """Test error when YAML is missing 'patterns' key."""
+        yaml_content = """
+some_other_key:
+  - value: 1
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            with pytest.raises(ValueError, match="must contain a 'patterns' key"):
+                ExtractionConfig.from_yaml(yaml_path)
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_missing_name_field(self):
+        """Test error when pattern is missing 'name' field."""
+        yaml_content = """
+patterns:
+  - filename: test.py
+    function_name: test
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            with pytest.raises(ValueError, match="missing required field 'name'"):
+                ExtractionConfig.from_yaml(yaml_path)
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_bottleneck_missing_fields(self):
+        """Test error when bottleneck preset is missing required fields."""
+        yaml_content = """
+patterns:
+  - name: my_bottleneck
+    preset: bottleneck
+    filename: test.py
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            with pytest.raises(
+                ValueError,
+                match="preset='bottleneck' requires 'filename' and 'function_name'",
+            ):
+                ExtractionConfig.from_yaml(yaml_path)
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_custom_missing_fields(self):
+        """Test error when custom pattern is missing required fields."""
+        yaml_content = """
+patterns:
+  - name: my_func
+    filename: test.py
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            with pytest.raises(
+                ValueError, match="requires 'filename' and 'function_name' fields"
+            ):
+                ExtractionConfig.from_yaml(yaml_path)
+        finally:
+            yaml_path.unlink()
+
+    def test_from_yaml_pattern_not_dict(self):
+        """Test error when pattern is not a dictionary."""
+        yaml_content = """
+patterns:
+  - not_a_dict
+"""
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            f.write(yaml_content)
+            yaml_path = Path(f.name)
+
+        try:
+            with pytest.raises(ValueError, match="must be a dictionary"):
+                ExtractionConfig.from_yaml(yaml_path)
+        finally:
+            yaml_path.unlink()
+

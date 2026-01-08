@@ -1,0 +1,136 @@
+# Example Extraction Configuration
+#
+# This file demonstrates the YAML syntax for configuring extraction patterns
+# that define which profiling metrics to extract from benchmark results.
+#
+# Usage:
+#   run_benchmark -m models/*.yaml -r 10 -b 20 --extraction-config extraction_config.yaml
+#   summarize results/profile_*/benchmark_results.csv --extraction-config extraction_config.yaml
+#
+# Each pattern defines:
+# - What function to match in cProfile output
+# - Which metrics to extract (cumtime, percall, ncalls)
+# - How to name the resulting columns
+#
+# Three pattern types are supported:
+#
+# 1. BOTTLENECK preset: Extracts all 3 metrics (cumtime, percall, ncalls)
+#    Use for performance hotspots you want to track in detail
+#
+# 2. PHASE preset: Extracts only cumtime with "rt_{name}_s" column naming
+#    Use for high-level simulation phases
+#
+# 3. CUSTOM: Fully customizable metric extraction and column naming
+#    Use when you need specific metrics or non-standard column names
+
+patterns:
+  # ===========================================================================
+  # BOTTLENECK PATTERNS
+  # ===========================================================================
+  # These extract cumtime, percall, and ncalls for detailed bottleneck analysis
+  
+  - name: gather_results
+    preset: bottleneck
+    filename: results/manager.py
+    function_name: gather_results
+    # Generates columns: gather_results_cumtime, gather_results_percall, gather_results_ncalls
+
+  - name: pipeline_call
+    preset: bottleneck
+    filename: values/pipeline.py
+    function_name: __call__
+    # Generates columns: pipeline_call_cumtime, pipeline_call_percall, pipeline_call_ncalls
+
+  - name: population_get
+    preset: bottleneck
+    filename: population/population_view.py
+    function_name: get
+    # Generates columns: population_get_cumtime, population_get_percall, population_get_ncalls
+
+  # ===========================================================================
+  # PHASE PATTERNS
+  # ===========================================================================
+  # These extract only cumtime for high-level simulation phases
+  # Default filename is /vivarium/framework/engine.py
+  
+  - name: setup
+    preset: phase
+    # Generates column: rt_setup_s
+    # filename defaults to /vivarium/framework/engine.py
+
+  - name: initialize_simulants
+    preset: phase
+    # Generates column: rt_initialize_simulants_s
+
+  - name: run
+    preset: phase
+    # Generates column: rt_run_s
+
+  - name: finalize
+    preset: phase
+    # Generates column: rt_finalize_s
+
+  - name: report
+    preset: phase
+    # Generates column: rt_report_s
+
+  # ===========================================================================
+  # CUSTOM PATTERNS
+  # ===========================================================================
+  # Full control over extraction behavior and column naming
+  
+  # Example: Custom phase with different engine file
+  # - name: custom_setup
+  #   preset: phase
+  #   filename: /my/custom/engine.py
+  
+  # Example: Custom function with selective metric extraction
+  # - name: my_bottleneck
+  #   filename: my/module.py
+  #   function_name: my_function
+  #   extract_cumtime: true
+  #   extract_percall: true
+  #   extract_ncalls: false
+  #   cumtime_template: "{name}_total_time"
+  #   percall_template: "{name}_avg_time"
+  #   # Generates columns: my_bottleneck_total_time, my_bottleneck_avg_time
+  
+  # Example: Minimal custom pattern (only cumtime, default template)
+  # - name: simple_func
+  #   filename: simple/module.py
+  #   function_name: simple_function
+  #   # extract_cumtime defaults to true, others default to false
+  #   # Generates column: simple_func_cumtime
+
+# ===========================================================================
+# FIELD REFERENCE
+# ===========================================================================
+#
+# Required fields for all patterns:
+#   name: Logical name used as prefix for column names
+#
+# Preset-specific required fields:
+#   bottleneck preset: filename, function_name
+#   phase preset: none (name is used as function_name)
+#   custom (no preset): filename, function_name
+#
+# Optional fields for custom patterns:
+#   filename: Path pattern to match (can be partial path)
+#   extract_cumtime: Extract cumulative time (default: true)
+#   extract_percall: Extract time per call (default: false)
+#   extract_ncalls: Extract number of calls (default: false)
+#   cumtime_template: Column name template for cumtime (default: "{name}_cumtime")
+#   percall_template: Column name template for percall (default: "{name}_percall")
+#   ncalls_template: Column name template for ncalls (default: "{name}_ncalls")
+#
+# Optional fields for phase preset:
+#   filename: Override default /vivarium/framework/engine.py
+#
+# Template variables:
+#   {name}: Replaced with the pattern's name field
+#
+# File path matching:
+#   - Patterns match any path ending with the specified filename
+#   - Use forward slashes even on Windows
+#   - Special regex characters (., *, etc.) are automatically escaped
+#   - Example: "results/manager.py" matches "/full/path/to/results/manager.py"

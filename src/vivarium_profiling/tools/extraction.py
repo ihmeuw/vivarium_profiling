@@ -224,19 +224,6 @@ class ExtractionConfig:
         YAML format::
 
             patterns:
-              - name: gather_results
-                filename: results/manager.py
-                function_name: gather_results
-                extract_cumtime: true
-                extract_percall: true
-                extract_ncalls: true
-
-              - name: setup
-                filename: /vivarium/framework/engine.py
-                function_name: setup
-                # extract_cumtime defaults to true, others default to false
-                cumtime_template: "rt_{name}_s"
-
               - name: custom_func
                 filename: my/module.py
                 function_name: my_function

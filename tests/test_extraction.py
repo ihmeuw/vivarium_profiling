@@ -245,22 +245,22 @@ patterns:
 
         try:
             config = ExtractionConfig.from_yaml(yaml_path)
-            
+
             assert len(config.patterns) == 3
-            
+
             # Pattern with all metrics
             pattern1 = config.patterns[0]
             assert pattern1.name == "gather_results"
             assert pattern1.extract_cumtime is True
             assert pattern1.extract_percall is True
             assert pattern1.extract_ncalls is True
-            
+
             # Pattern with custom template
             pattern2 = config.patterns[1]
             assert pattern2.cumtime_template == "rt_{name}_s"
             assert pattern2.cumtime_col == "rt_setup_s"
             assert pattern2.extract_percall is False  # default
-            
+
             # Pattern with selective metrics and custom template
             pattern3 = config.patterns[2]
             assert pattern3.extract_cumtime is True
@@ -342,4 +342,3 @@ patterns:
                 ExtractionConfig.from_yaml(yaml_path)
         finally:
             yaml_path.unlink()
-

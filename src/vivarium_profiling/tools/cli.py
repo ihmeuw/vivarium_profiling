@@ -263,7 +263,14 @@ def run_benchmark(
 
     # Run benchmarks with error handling
     main = handle_exceptions(run_benchmark_loop, logger, with_debugger=with_debugger)
-    main(model_specifications, model_runs, baseline_model_runs, output_dir, extraction_config, verbose)
+    main(
+        model_specifications,
+        model_runs,
+        baseline_model_runs,
+        output_dir,
+        extraction_config,
+        verbose,
+    )
 
 
 def _expand_model_specs(model_patterns: list[str]) -> list[Path]:
@@ -340,12 +347,12 @@ def summarize(
         summarize results/profile_2026_01_07/benchmark_results.csv
     """
     configure_logging_to_terminal(verbose)
-    
+
     # Parse extraction config if provided
     config = None
     if extraction_config is not None:
         config = ExtractionConfig.from_yaml(extraction_config)
-    
+
     benchmark_results_path = Path(benchmark_results)
     main = handle_exceptions(run_summarize_analysis, logger, with_debugger=with_debugger)
     main(benchmark_results_path, config=config, nb=nb)

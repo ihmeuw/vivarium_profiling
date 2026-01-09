@@ -17,7 +17,6 @@ from typing import Any
 import yaml
 from loguru import logger
 
-
 # Default values for optional CallPattern fields
 DEFAULT_PATTERN_CONFIG = {
     "extract_cumtime": True,

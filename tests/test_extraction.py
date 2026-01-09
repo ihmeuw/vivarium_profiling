@@ -1,6 +1,7 @@
 """Unit tests for extraction utilities."""
 
 import tempfile
+from contextlib import contextmanager
 from pathlib import Path
 
 import pytest
@@ -13,6 +14,19 @@ from vivarium_profiling.tools.extraction import (
     parse_function_metrics,
     phase_config,
 )
+
+
+@contextmanager
+def temp_yaml_file(yaml_content: str):
+    """Context manager for creating and cleaning up temporary YAML files."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(yaml_content)
+        yaml_path = Path(f.name)
+
+    try:
+        yield yaml_path
+    finally:
+        yaml_path.unlink()
 
 
 class TestCallPattern:
@@ -239,11 +253,7 @@ patterns:
     extract_percall: true
     cumtime_template: "custom_{name}_time"
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_content)
-            yaml_path = Path(f.name)
-
-        try:
+        with temp_yaml_file(yaml_content) as yaml_path:
             config = ExtractionConfig.from_yaml(yaml_path)
 
             assert len(config.patterns) == 3
@@ -267,8 +277,6 @@ patterns:
             assert pattern3.extract_percall is True
             assert pattern3.extract_ncalls is False  # default
             assert pattern3.cumtime_col == "custom_my_function_time"
-        finally:
-            yaml_path.unlink()
 
     def test_from_yaml_file_not_found(self):
         """Test error when YAML file doesn't exist."""
@@ -281,15 +289,9 @@ patterns:
 some_other_key:
   - value: 1
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_content)
-            yaml_path = Path(f.name)
-
-        try:
+        with temp_yaml_file(yaml_content) as yaml_path:
             with pytest.raises(ValueError, match="must contain a 'patterns' key"):
                 ExtractionConfig.from_yaml(yaml_path)
-        finally:
-            yaml_path.unlink()
 
     def test_from_yaml_missing_name_field(self):
         """Test error when pattern is missing 'name' field."""
@@ -298,15 +300,9 @@ patterns:
   - filename: test.py
     function_name: test
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_content)
-            yaml_path = Path(f.name)
-
-        try:
+        with temp_yaml_file(yaml_content) as yaml_path:
             with pytest.raises(ValueError, match="missing required field 'name'"):
                 ExtractionConfig.from_yaml(yaml_path)
-        finally:
-            yaml_path.unlink()
 
     def test_from_yaml_missing_required_fields(self):
         """Test error when pattern is missing required fields."""
@@ -315,17 +311,11 @@ patterns:
   - name: my_func
     filename: test.py
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_content)
-            yaml_path = Path(f.name)
-
-        try:
+        with temp_yaml_file(yaml_content) as yaml_path:
             with pytest.raises(
                 ValueError, match="requires 'filename' and 'function_name' fields"
             ):
                 ExtractionConfig.from_yaml(yaml_path)
-        finally:
-            yaml_path.unlink()
 
     def test_from_yaml_pattern_not_dict(self):
         """Test error when pattern is not a dictionary."""
@@ -333,12 +323,6 @@ patterns:
 patterns:
   - not_a_dict
 """
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
-            f.write(yaml_content)
-            yaml_path = Path(f.name)
-
-        try:
+        with temp_yaml_file(yaml_content) as yaml_path:
             with pytest.raises(ValueError, match="must be a dictionary"):
                 ExtractionConfig.from_yaml(yaml_path)
-        finally:
-            yaml_path.unlink()

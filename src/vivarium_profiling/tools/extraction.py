@@ -18,6 +18,17 @@ import yaml
 from loguru import logger
 
 
+# Default values for optional CallPattern fields
+DEFAULT_PATTERN_CONFIG = {
+    "extract_cumtime": True,
+    "extract_percall": False,
+    "extract_ncalls": False,
+    "cumtime_template": "{name}_cumtime",
+    "percall_template": "{name}_percall",
+    "ncalls_template": "{name}_ncalls",
+}
+
+
 @dataclass
 class CallPattern:
     """Configuration for extracting metrics for a specific function from cProfile stats.
@@ -214,13 +225,17 @@ class ExtractionConfig:
 
             patterns:
               - name: gather_results
-                preset: bottleneck
                 filename: results/manager.py
                 function_name: gather_results
+                extract_cumtime: true
+                extract_percall: true
+                extract_ncalls: true
 
               - name: setup
-                preset: phase
-                # filename defaults to /vivarium/framework/engine.py for phases
+                filename: /vivarium/framework/engine.py
+                function_name: setup
+                # extract_cumtime defaults to true, others default to false
+                cumtime_template: "rt_{name}_s"
 
               - name: custom_func
                 filename: my/module.py
@@ -247,46 +262,23 @@ class ExtractionConfig:
             if not isinstance(pattern_dict, dict):
                 raise ValueError(f"Pattern at index {i} must be a dictionary")
 
-            if "name" not in pattern_dict:
+            # Merge defaults with user config
+            merged_config = DEFAULT_PATTERN_CONFIG.copy()
+            merged_config.update(pattern_dict)
+
+            # Validate required fields
+            if "name" not in merged_config:
                 raise ValueError(f"Pattern at index {i} is missing required field 'name'")
 
-            name = pattern_dict["name"]
-            preset = pattern_dict.get("preset")
+            name = merged_config["name"]
 
-            # Handle preset shortcuts
-            if preset == "bottleneck":
-                if "filename" not in pattern_dict or "function_name" not in pattern_dict:
-                    raise ValueError(
-                        f"Pattern '{name}' with preset='bottleneck' requires "
-                        "'filename' and 'function_name'"
-                    )
-                pattern = bottleneck_config(
-                    name=name,
-                    filename=pattern_dict["filename"],
-                    function_name=pattern_dict["function_name"],
+            if "filename" not in merged_config or "function_name" not in merged_config:
+                raise ValueError(
+                    f"Pattern '{name}' requires 'filename' and 'function_name' fields"
                 )
-            elif preset == "phase":
-                filename = pattern_dict.get("filename", "/vivarium/framework/engine.py")
-                pattern = phase_config(name=name, filename=filename)
-            else:
-                # Custom pattern - require filename and function_name
-                if "filename" not in pattern_dict or "function_name" not in pattern_dict:
-                    raise ValueError(
-                        f"Pattern '{name}' requires 'filename' and 'function_name' fields"
-                    )
 
-                # Extract optional fields with defaults
-                pattern = CallPattern(
-                    name=name,
-                    filename=pattern_dict["filename"],
-                    function_name=pattern_dict["function_name"],
-                    extract_cumtime=pattern_dict.get("extract_cumtime", True),
-                    extract_percall=pattern_dict.get("extract_percall", False),
-                    extract_ncalls=pattern_dict.get("extract_ncalls", False),
-                    cumtime_template=pattern_dict.get("cumtime_template", "{name}_cumtime"),
-                    percall_template=pattern_dict.get("percall_template", "{name}_percall"),
-                    ncalls_template=pattern_dict.get("ncalls_template", "{name}_ncalls"),
-                )
+            # Create CallPattern from merged config
+            pattern = CallPattern(**merged_config)
 
             patterns.append(pattern)
 

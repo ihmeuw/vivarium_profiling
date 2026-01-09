@@ -1,5 +1,11 @@
 """Unit tests for extraction utilities."""
 
+import tempfile
+from contextlib import contextmanager
+from pathlib import Path
+
+import pytest
+
 from vivarium_profiling.tools.extraction import (
     CallPattern,
     ExtractionConfig,
@@ -8,6 +14,19 @@ from vivarium_profiling.tools.extraction import (
     parse_function_metrics,
     phase_config,
 )
+
+
+@contextmanager
+def temp_yaml_file(yaml_content: str):
+    """Context manager for creating and cleaning up temporary YAML files."""
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+        f.write(yaml_content)
+        yaml_path = Path(f.name)
+
+    try:
+        yield yaml_path
+    finally:
+        yaml_path.unlink()
 
 
 class TestCallPattern:
@@ -207,3 +226,103 @@ class TestExtractionConfigExtract:
         metrics = config.extract_metrics(sample_stats_file)
 
         assert metrics["missing_cumtime"] is None
+
+
+class TestYAMLParsing:
+    """Tests for YAML configuration parsing."""
+
+    def test_from_yaml_mixed_patterns(self):
+        """Test parsing YAML with various pattern configurations and templates."""
+        yaml_content = """
+patterns:
+  - name: gather_results
+    filename: results/manager.py
+    function_name: gather_results
+    extract_cumtime: true
+    extract_percall: true
+    extract_ncalls: true
+  - name: setup
+    filename: /vivarium/framework/engine.py
+    function_name: setup
+    extract_cumtime: true
+    cumtime_template: "rt_{name}_s"
+  - name: my_function
+    filename: my/module.py
+    function_name: my_function
+    extract_cumtime: true
+    extract_percall: true
+    cumtime_template: "custom_{name}_time"
+"""
+        with temp_yaml_file(yaml_content) as yaml_path:
+            config = ExtractionConfig.from_yaml(yaml_path)
+
+            assert len(config.patterns) == 3
+
+            # Pattern with all metrics
+            pattern1 = config.patterns[0]
+            assert pattern1.name == "gather_results"
+            assert pattern1.extract_cumtime is True
+            assert pattern1.extract_percall is True
+            assert pattern1.extract_ncalls is True
+
+            # Pattern with custom template
+            pattern2 = config.patterns[1]
+            assert pattern2.cumtime_template == "rt_{name}_s"
+            assert pattern2.cumtime_col == "rt_setup_s"
+            assert pattern2.extract_percall is False  # default
+
+            # Pattern with selective metrics and custom template
+            pattern3 = config.patterns[2]
+            assert pattern3.extract_cumtime is True
+            assert pattern3.extract_percall is True
+            assert pattern3.extract_ncalls is False  # default
+            assert pattern3.cumtime_col == "custom_my_function_time"
+
+    def test_from_yaml_file_not_found(self):
+        """Test error when YAML file doesn't exist."""
+        with pytest.raises(FileNotFoundError, match="YAML config file not found"):
+            ExtractionConfig.from_yaml("/nonexistent/file.yaml")
+
+    def test_from_yaml_missing_patterns_key(self):
+        """Test error when YAML is missing 'patterns' key."""
+        yaml_content = """
+some_other_key:
+  - value: 1
+"""
+        with temp_yaml_file(yaml_content) as yaml_path:
+            with pytest.raises(ValueError, match="must contain a 'patterns' key"):
+                ExtractionConfig.from_yaml(yaml_path)
+
+    def test_from_yaml_missing_name_field(self):
+        """Test error when pattern is missing 'name' field."""
+        yaml_content = """
+patterns:
+  - filename: test.py
+    function_name: test
+"""
+        with temp_yaml_file(yaml_content) as yaml_path:
+            with pytest.raises(ValueError, match="missing required field 'name'"):
+                ExtractionConfig.from_yaml(yaml_path)
+
+    def test_from_yaml_missing_required_fields(self):
+        """Test error when pattern is missing required fields."""
+        yaml_content = """
+patterns:
+  - name: my_func
+    filename: test.py
+"""
+        with temp_yaml_file(yaml_content) as yaml_path:
+            with pytest.raises(
+                ValueError, match="requires 'filename' and 'function_name' fields"
+            ):
+                ExtractionConfig.from_yaml(yaml_path)
+
+    def test_from_yaml_pattern_not_dict(self):
+        """Test error when pattern is not a dictionary."""
+        yaml_content = """
+patterns:
+  - not_a_dict
+"""
+        with temp_yaml_file(yaml_content) as yaml_path:
+            with pytest.raises(ValueError, match="must be a dictionary"):
+                ExtractionConfig.from_yaml(yaml_path)

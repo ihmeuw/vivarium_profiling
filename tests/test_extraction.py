@@ -17,10 +17,12 @@ from vivarium_profiling.tools.extraction import (
 @pytest.fixture
 def temp_yaml_file(tmp_path):
     """Fixture for creating temporary YAML files."""
+
     def _create_yaml(yaml_content: str) -> Path:
         yaml_path = tmp_path / "config.yaml"
         yaml_path.write_text(yaml_content)
         return yaml_path
+
     return _create_yaml
 
 
@@ -251,27 +253,27 @@ patterns:
         yaml_path = temp_yaml_file(yaml_content)
         config = ExtractionConfig.from_yaml(yaml_path)
 
-            assert len(config.patterns) == 3
+        assert len(config.patterns) == 3
 
-            # Pattern with all metrics
-            pattern1 = config.patterns[0]
-            assert pattern1.name == "gather_results"
-            assert pattern1.extract_cumtime is True
-            assert pattern1.extract_percall is True
-            assert pattern1.extract_ncalls is True
+        # Pattern with all metrics
+        pattern1 = config.patterns[0]
+        assert pattern1.name == "gather_results"
+        assert pattern1.extract_cumtime is True
+        assert pattern1.extract_percall is True
+        assert pattern1.extract_ncalls is True
 
-            # Pattern with custom template
-            pattern2 = config.patterns[1]
-            assert pattern2.cumtime_template == "rt_{name}_s"
-            assert pattern2.cumtime_col == "rt_setup_s"
-            assert pattern2.extract_percall is False  # default
+        # Pattern with custom template
+        pattern2 = config.patterns[1]
+        assert pattern2.cumtime_template == "rt_{name}_s"
+        assert pattern2.cumtime_col == "rt_setup_s"
+        assert pattern2.extract_percall is False  # default
 
-            # Pattern with selective metrics and custom template
-            pattern3 = config.patterns[2]
-            assert pattern3.extract_cumtime is True
-            assert pattern3.extract_percall is True
-            assert pattern3.extract_ncalls is False  # default
-            assert pattern3.cumtime_col == "custom_my_function_time"
+        # Pattern with selective metrics and custom template
+        pattern3 = config.patterns[2]
+        assert pattern3.extract_cumtime is True
+        assert pattern3.extract_percall is True
+        assert pattern3.extract_ncalls is False  # default
+        assert pattern3.cumtime_col == "custom_my_function_time"
 
     def test_from_yaml_file_not_found(self):
         """Test error when YAML file doesn't exist."""

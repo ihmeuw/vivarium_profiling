@@ -101,29 +101,14 @@ You'll find six directories inside the main
   data or process outputs.
 
 
-Running Simulations
--------------------
-
-Before running a simulation, you should have a model specification file.
-A model specification is a complete description of a vivarium model in
-a yaml format.  An example model specification is provided with this repository
-in the ``model_specifications`` directory.
-
-With this model specification file and your conda environment active, you can then run simulations by, e.g.::
-
-   (vivarium_profiling) :~$ simulate run -v /<REPO_INSTALLATION_DIRECTORY>/vivarium_profiling/src/vivarium_profiling/model_specifications/model_spec.yaml
-
-The ``-v`` flag will log verbosely, so you will get log messages every time
-step. For more ways to run simulations, see the tutorials at
-https://vivarium.readthedocs.io/en/latest/tutorials/running_a_simulation/index.html
-and https://vivarium.readthedocs.io/en/latest/tutorials/exploration.html
-
-
 Profiling and Benchmarking
 ---------------------------
 
 This repository provides tools for profiling and benchmarking Vivarium simulations
-to analyze their performance characteristics.
+to analyze their performance characteristics. See the tutorials at
+https://vivarium.readthedocs.io/en/latest/tutorials/running_a_simulation/index.html
+and https://vivarium.readthedocs.io/en/latest/tutorials/exploration.html for general instructions
+on running simulations with Vivarium.
 
 Configuring Scaling Simulations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

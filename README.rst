@@ -117,3 +117,205 @@ The ``-v`` flag will log verbosely, so you will get log messages every time
 step. For more ways to run simulations, see the tutorials at
 https://vivarium.readthedocs.io/en/latest/tutorials/running_a_simulation/index.html
 and https://vivarium.readthedocs.io/en/latest/tutorials/exploration.html
+
+
+Profiling and Benchmarking
+---------------------------
+
+This repository provides tools for profiling and benchmarking Vivarium simulations
+to analyze their performance characteristics.
+
+Configuring Scaling Simulations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+This repository includes a custom ``MultiComponentParser`` plugin that allows you to
+easily create scaling simulations by defining multiple instances of diseases and risks
+using a simplified YAML syntax.
+
+To use the parser, add it to your model specification::
+
+    plugins:
+        required:
+            component_configuration_parser:
+                controller: "vivarium_profiling.plugins.parser.MultiComponentParser"
+
+Then use the ``causes`` and ``risks`` multi-config blocks:
+
+**Causes Configuration**
+
+Define multiple disease instances with automatic numbering::
+
+    components:
+        causes:
+            lower_respiratory_infections:
+                number: 4          # Creates 4 disease instances
+                duration: 28       # Disease duration in days
+                observers: True    # Auto-create DiseaseObserver components
+
+This creates components named ``lower_respiratory_infections_1``,
+``lower_respiratory_infections_2``, etc., each with its own observer if enabled.
+
+**Risks Configuration**
+
+Define multiple risk instances and their effects on causes::
+
+    components:
+        risks:
+            high_systolic_blood_pressure:
+                number: 2
+                observers: False    # Set False for continuous risks
+                affected_causes:
+                    lower_respiratory_infections:
+                        effect_type: nonloglinear
+                        measure: incidence_rate
+                        number: 2   # Affects first 2 LRI instances
+
+            unsafe_water_source:
+                number: 2
+                observers: True     # Set True for categorical risks
+                affected_causes:
+                    lower_respiratory_infections:
+                        effect_type: loglinear
+                        number: 2
+
+**Effect Types:**
+
+- ``loglinear``: Creates standard ``RiskEffect`` components (for PAFs)
+- ``nonloglinear``: Creates ``NonLogLinearRiskEffect`` components (for relative risk)
+
+**Complete Example**
+
+See ``model_specifications/model_spec_scaling.yaml`` for a complete working example
+of a scaling simulation configuration.
+
+
+Running Benchmark Simulations
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``run_benchmark`` command profiles multiple model specifications and collects
+runtime and memory usage statistics::
+
+    (vivarium_profiling) :~$ run_benchmark \
+        -m "model_spec_baseline.yaml" \
+        -m "model_spec_*.yaml" \
+        -r 10 \
+        -b 20 \
+        -o /path/to/results
+
+**Required Arguments:**
+
+- ``-m, --model_specifications``: Model specification files (supports glob patterns).
+  Can be specified multiple times. One model must be ``model_spec_baseline.yaml``.
+- ``-r, --model-runs``: Number of runs for non-baseline models.
+- ``-b, --baseline-model-runs``: Number of runs for baseline model (typically higher
+  for better statistics).
+
+**Optional Arguments:**
+
+- ``-o, --output-dir``: Directory where results will be saved (default: current directory).
+  Creates a timestamped subdirectory ``profile_YYYY_MM_DD_HH_MM_SS/``.
+- ``--extraction-config``: Path to YAML file defining custom extraction patterns
+  (see "Customizing Result Extraction" below).
+- ``-v``: Increase logging verbosity (can be repeated: ``-vv``, ``-vvv``).
+- ``--pdb``: Drop into debugger if an error occurs.
+
+**Using External Model Specifications**
+
+You can benchmark models from other repositories by providing full paths::
+
+    (vivarium_profiling) :~$ run_benchmark \
+        -m "model_spec_baseline.yaml" \
+        -m "/path/to/other/repo/model_specs/model_spec_custom.yaml" \
+        -r 10 \
+        -b 20
+
+**Output Files**
+
+The command creates a timestamped directory containing:
+
+- ``benchmark_results.csv``: Raw profiling data for each run
+- ``summary.csv``: Aggregated statistics (automatically generated)
+- ``performance_analysis.png``: Performance charts (automatically generated)
+- Additional analysis plots for runtime phases and bottlenecks
+
+
+Analyzing Benchmark Results
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``summarize`` command processes benchmark results and creates visualizations.
+This runs automatically after ``run_benchmark``, but can also be run manually
+for custom analysis::
+
+    (vivarium_profiling) :~$ summarize benchmark_results.csv
+
+**Optional Arguments:**
+
+- ``--extraction-config``: Use custom extraction patterns (must match those used
+  in ``run_benchmark``).
+- ``--nb``: Generate an interactive Jupyter notebook instead of static plots.
+- ``-v``: Increase logging verbosity.
+- ``--pdb``: Drop into debugger if an error occurs.
+
+**Generated Files**
+
+By default (without ``--nb``):
+
+- ``summary.csv``: Aggregated statistics with mean, median, std, min, max
+  for all metrics, plus percent differences from baseline
+- ``performance_analysis.png``: Runtime and memory usage comparison charts
+- ``runtime_analysis_*.png``: Individual phase runtime charts (setup, run, etc.)
+- ``bottleneck_fraction_*.png``: Bottleneck fraction scaling analysis
+
+With ``--nb`` flag:
+
+- ``analysis.ipynb``: Interactive Jupyter notebook with all plots and data
+  exploration capabilities
+
+
+Customizing Result Extraction
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+By default, the benchmarking tools extract standard profiling metrics:
+
+- Simulation phases: setup, initialize_simulants, run, finalize, report
+- Common bottlenecks: gather_results, pipeline calls, population views
+- Memory usage and total runtime
+
+You can customize which metrics to extract by creating an extraction config YAML file.
+See ``extraction_config_example.yaml`` for a complete annotated example.
+
+**Basic Pattern Structure**::
+
+    patterns:
+      - name: my_function          # Logical name for the metric
+        filename: my_module.py     # Source file containing the function
+        function_name: my_function # Function name to match
+        extract_cumtime: true      # Extract cumulative time (default: true)
+        extract_percall: false     # Extract time per call (default: false)
+        extract_ncalls: false      # Extract number of calls (default: false)
+
+**Pattern Types:**
+
+1. **Bottleneck patterns** - Extract all metrics (cumtime, percall, ncalls)
+   for detailed performance analysis of hotspots
+
+2. **Phase patterns** - Extract only cumtime with custom column naming
+   (e.g., ``rt_{name}_s``) for high-level simulation phases
+
+3. **Custom patterns** - Mix and match metrics as needed
+
+**Using Custom Extraction Config**
+
+Provide the same config to both commands::
+
+    (vivarium_profiling) :~$ run_benchmark \
+        -m "model_spec_*.yaml" \
+        -r 10 -b 20 \
+        --extraction-config my_extraction_config.yaml
+
+    (vivarium_profiling) :~$ summarize \
+        results/profile_*/benchmark_results.csv \
+        --extraction-config my_extraction_config.yaml
+
+The extraction config defines which profiling metrics appear in your results
+and how bottleneck fractions are calculated.

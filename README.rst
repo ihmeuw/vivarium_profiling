@@ -178,13 +178,6 @@ Define multiple risk instances and their effects on causes::
                         effect_type: loglinear
                         number: 2
 
-**Effect Types:**
-
-- ``loglinear``: Creates standard ``RiskEffect`` components (for PAFs)
-- ``nonloglinear``: Creates ``NonLogLinearRiskEffect`` components (for relative risk)
-
-**Complete Example**
-
 See ``model_specifications/model_spec_scaling.yaml`` for a complete working example
 of a scaling simulation configuration.
 
@@ -192,44 +185,19 @@ of a scaling simulation configuration.
 Running Benchmark Simulations
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The ``run_benchmark`` command profiles multiple model specifications and collects
-runtime and memory usage statistics::
+The ``profile_sim`` command profiles runtime and memory usage for a single simulation of a vivarium model
+given a model specification file. The underlying simulation model can
+be any vivarium-based model, including the aforementioned scaling simulations as well as models in a 
+separate repository. This will generate, in addition to the standard simulation outputs, profiling data 
+depending on the profiling backend provided. By default, runtime profiling is performed with ``cProfile``, but 
+you can also use ``scalene`` for more detailed call stack analysis.
 
-    (vivarium_profiling) :~$ run_benchmark \
-        -m "model_spec_baseline.yaml" \
-        -m "model_spec_*.yaml" \
-        -r 10 \
-        -b 20 \
-        -o /path/to/results
-
-**Required Arguments:**
-
-- ``-m, --model_specifications``: Model specification files (supports glob patterns).
-  Can be specified multiple times. One model must be ``model_spec_baseline.yaml``.
-- ``-r, --model-runs``: Number of runs for non-baseline models.
-- ``-b, --baseline-model-runs``: Number of runs for baseline model (typically higher
-  for better statistics).
-
-**Optional Arguments:**
-
-- ``-o, --output-dir``: Directory where results will be saved (default: current directory).
-  Creates a timestamped subdirectory ``profile_YYYY_MM_DD_HH_MM_SS/``.
-- ``--extraction-config``: Path to YAML file defining custom extraction patterns
-  (see "Customizing Result Extraction" below).
-- ``-v``: Increase logging verbosity (can be repeated: ``-vv``, ``-vvv``).
-- ``--pdb``: Drop into debugger if an error occurs.
-
-**Using External Model Specifications**
-
-You can benchmark models from other repositories by providing full paths::
-
-    (vivarium_profiling) :~$ run_benchmark \
-        -m "model_spec_baseline.yaml" \
-        -m "/path/to/other/repo/model_specs/model_spec_custom.yaml" \
-        -r 10 \
-        -b 20
-
-**Output Files**
+The ``run_benchmark`` command runs multiple iterations of one or more model specification, in order to compare
+the results. It requires at least one baseline model (specified as ``model_spec_baseline.yaml``) for comparison,
+and any other number of 'experiment' models to benchmark against the baseline, which can be specifid via glob patterns.
+You can separately configure the sample size of runs for the baseline and experiment models. The command aggregates
+the profiling results and generates summary statistics and visualizations for a default set of important function calls
+to help identify performance bottlenecks.
 
 The command creates a timestamped directory containing:
 
@@ -244,21 +212,9 @@ Analyzing Benchmark Results
 
 The ``summarize`` command processes benchmark results and creates visualizations.
 This runs automatically after ``run_benchmark``, but can also be run manually
-for custom analysis::
+for custom analysis after the fact.
 
-    (vivarium_profiling) :~$ summarize benchmark_results.csv
-
-**Optional Arguments:**
-
-- ``--extraction-config``: Use custom extraction patterns (must match those used
-  in ``run_benchmark``).
-- ``--nb``: Generate an interactive Jupyter notebook instead of static plots.
-- ``-v``: Increase logging verbosity.
-- ``--pdb``: Drop into debugger if an error occurs.
-
-**Generated Files**
-
-By default (without ``--nb``):
+By default, this creates the following files in the specified output directory:
 
 - ``summary.csv``: Aggregated statistics with mean, median, std, min, max
   for all metrics, plus percent differences from baseline
@@ -266,10 +222,9 @@ By default (without ``--nb``):
 - ``runtime_analysis_*.png``: Individual phase runtime charts (setup, run, etc.)
 - ``bottleneck_fraction_*.png``: Bottleneck fraction scaling analysis
 
-With ``--nb`` flag:
-
-- ``analysis.ipynb``: Interactive Jupyter notebook with all plots and data
-  exploration capabilities
+You can also generate an interactive Jupyter notebook including the same default plots
+and summary dataframe with a ``--nb`` flag, in which case the command also creates an
+``analysis.ipynb`` file in the output directory.
 
 
 Customizing Result Extraction
@@ -294,28 +249,6 @@ See ``extraction_config_example.yaml`` for a complete annotated example.
         extract_percall: false     # Extract time per call (default: false)
         extract_ncalls: false      # Extract number of calls (default: false)
 
-**Pattern Types:**
-
-1. **Bottleneck patterns** - Extract all metrics (cumtime, percall, ncalls)
-   for detailed performance analysis of hotspots
-
-2. **Phase patterns** - Extract only cumtime with custom column naming
-   (e.g., ``rt_{name}_s``) for high-level simulation phases
-
-3. **Custom patterns** - Mix and match metrics as needed
-
-**Using Custom Extraction Config**
-
-Provide the same config to both commands::
-
-    (vivarium_profiling) :~$ run_benchmark \
-        -m "model_spec_*.yaml" \
-        -r 10 -b 20 \
-        --extraction-config my_extraction_config.yaml
-
-    (vivarium_profiling) :~$ summarize \
-        results/profile_*/benchmark_results.csv \
-        --extraction-config my_extraction_config.yaml
-
-The extraction config defines which profiling metrics appear in your results
-and how bottleneck fractions are calculated.
+In turn, this yaml can be passed to the ``run_benchmark`` and ``summarize`` commands
+using the ``--extraction_config`` flag. ``summarize`` will automatically create runtime
+analysis plots for the specified functions. 

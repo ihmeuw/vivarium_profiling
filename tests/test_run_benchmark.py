@@ -25,6 +25,11 @@ RESULTS_SUMMARY_COLUMNS = [
     "population_get_cumtime",
     "population_get_percall",
     "population_get_ncalls",
+    "rt_setup_s",
+    "rt_initialize_simulants_s",
+    "rt_run_s",
+    "rt_finalize_s",
+    "rt_report_s",
 ]
 
 

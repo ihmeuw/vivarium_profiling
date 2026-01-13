@@ -79,7 +79,6 @@ def run_single_benchmark(
     run_number: int,
     total_runs: int,
     spec_results_dir: str,
-    model_spec_name: str,
     config: ExtractionConfig,
 ) -> dict[str, Any]:
     """Run a single benchmark iteration.
@@ -94,8 +93,6 @@ def run_single_benchmark(
         Total number of runs for this spec.
     spec_results_dir
         Directory to store results for this spec.
-    model_spec_name
-        Name of the model spec (stem of the file).
     config
         Extraction configuration. Defaults to DEFAULT_CONFIG.
 
@@ -122,6 +119,7 @@ def run_single_benchmark(
     move_mprof_files(current_results_dir)
 
     # Get runtime and function metrics
+    model_spec_name = Path(spec).stem
     stats_file = Path(current_results_dir) / f"{model_spec_name}.stats"
     stats_file_txt = f"{stats_file}.txt"
 
@@ -211,7 +209,6 @@ def run_benchmark_loop(
                     run,
                     num_runs,
                     str(spec_specific_results_dir),
-                    model_spec_name,
                     config,
                 )
                 result_df = pd.DataFrame([results])

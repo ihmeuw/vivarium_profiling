@@ -1,8 +1,9 @@
 """Data extraction utilities for benchmark profiling results.
 
 This module provides configurable extraction of profiling metrics from cProfile
-stats files and memory profiler output. The extraction is driven by CallPattern
-objects that map logical names to regex patterns for matching function calls.
+stats files and memory profiler output. The extraction is driven by
+FunctionCallConfiguration objects that map logical names to regex patterns for
+matching function calls.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from loguru import logger
 
 
 @dataclass
-class CallPattern:
+class FunctionCallConfiguration:
     """Configuration for extracting metrics for a specific function from cProfile stats.
 
     Attributes
@@ -88,8 +89,10 @@ class CallPattern:
         return cols
 
 
-def bottleneck_config(name: str, filename: str, function_name: str) -> CallPattern:
-    """Create a CallPattern for a bottleneck function (extracts all 3 metrics).
+def bottleneck_config(
+    name: str, filename: str, function_name: str
+) -> FunctionCallConfiguration:
+    """Create a FunctionCallConfiguration for a bottleneck function (extracts all 3 metrics).
 
     Parameters
     ----------
@@ -102,10 +105,10 @@ def bottleneck_config(name: str, filename: str, function_name: str) -> CallPatte
 
     Returns
     -------
-        CallPattern configured for bottleneck extraction.
+        FunctionCallConfiguration configured for bottleneck extraction.
 
     """
-    return CallPattern(
+    return FunctionCallConfiguration(
         name=name,
         filename=filename,
         function_name=function_name,
@@ -115,8 +118,10 @@ def bottleneck_config(name: str, filename: str, function_name: str) -> CallPatte
     )
 
 
-def phase_config(name: str, filename: str = "/vivarium/framework/engine.py") -> CallPattern:
-    """Create a CallPattern for a simulation phase (extracts cumtime only).
+def phase_config(
+    name: str, filename: str = "/vivarium/framework/engine.py"
+) -> FunctionCallConfiguration:
+    """Create a FunctionCallConfiguration for a simulation phase (extracts cumtime only).
 
     Parameters
     ----------
@@ -127,10 +132,10 @@ def phase_config(name: str, filename: str = "/vivarium/framework/engine.py") -> 
 
     Returns
     -------
-        CallPattern configured for phase extraction.
+        FunctionCallConfiguration configured for phase extraction.
 
     """
-    return CallPattern(
+    return FunctionCallConfiguration(
         name=name,
         filename=filename,
         function_name=name,
@@ -177,11 +182,11 @@ class ExtractionConfig:
     Attributes
     ----------
     patterns
-        List of CallPattern objects defining what metrics to extract.
+        List of FunctionCallConfiguration objects defining what metrics to extract.
 
     """
 
-    def __init__(self, patterns: list[CallPattern] | None = None):
+    def __init__(self, patterns: list[FunctionCallConfiguration] | None = None):
         if patterns is None:
             patterns = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
         self.patterns = patterns

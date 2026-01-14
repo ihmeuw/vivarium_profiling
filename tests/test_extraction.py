@@ -1,8 +1,8 @@
 """Unit tests for extraction utilities."""
 
 from vivarium_profiling.tools.extraction import (
-    CallPattern,
     ExtractionConfig,
+    FunctionCallConfiguration,
     bottleneck_config,
     extract_runtime,
     parse_function_metrics,
@@ -10,12 +10,14 @@ from vivarium_profiling.tools.extraction import (
 )
 
 
-class TestCallPattern:
-    """Tests for CallPattern dataclass."""
+class TestFunctionCallConfiguration:
+    """Tests for FunctionCallConfiguration dataclass."""
 
-    def test_call_pattern_defaults(self):
-        """Test CallPattern with default extraction flags."""
-        pattern = CallPattern(name="test_func", filename="test.py", function_name="test_func")
+    def test_function_call_configuration_defaults(self):
+        """Test FunctionCallConfiguration with default extraction flags."""
+        pattern = FunctionCallConfiguration(
+            name="test_func", filename="test.py", function_name="test_func"
+        )
 
         assert pattern.name == "test_func"
         assert pattern.filename == "test.py"
@@ -29,9 +31,9 @@ class TestCallPattern:
         assert pattern.ncalls_col == "test_func_ncalls"
         assert pattern.columns == ["test_func_cumtime"]
 
-    def test_call_pattern_all_extracts(self):
-        """Test CallPattern with all extraction flags enabled."""
-        pattern = CallPattern(
+    def test_function_call_configuration_all_extracts(self):
+        """Test FunctionCallConfiguration with all extraction flags enabled."""
+        pattern = FunctionCallConfiguration(
             name="bottleneck",
             filename="test.py",
             function_name="bottleneck",
@@ -47,9 +49,9 @@ class TestCallPattern:
             "bottleneck_ncalls",
         ]
 
-    def test_call_pattern_custom_templates(self):
-        """Test CallPattern with custom column templates."""
-        pattern = CallPattern(
+    def test_function_call_configuration_custom_templates(self):
+        """Test FunctionCallConfiguration with custom column templates."""
+        pattern = FunctionCallConfiguration(
             name="phase",
             filename="engine.py",
             function_name="phase",
@@ -76,7 +78,7 @@ class TestExtractionConfig:
     def test_extraction_config_custom_patterns(self):
         """Test ExtractionConfig with custom patterns."""
         patterns = [
-            CallPattern("func1", "test.py", "func1"),
+            FunctionCallConfiguration("func1", "test.py", "func1"),
             bottleneck_config("func2", "test.py", "func2"),
         ]
         config = ExtractionConfig(patterns=patterns)
@@ -87,8 +89,10 @@ class TestExtractionConfig:
     def test_metric_columns(self):
         """Test metric_columns property."""
         patterns = [
-            CallPattern("a", "test.py", "a", extract_cumtime=True, extract_percall=True),
-            CallPattern("b", "test.py", "b", extract_cumtime=True),
+            FunctionCallConfiguration(
+                "a", "test.py", "a", extract_cumtime=True, extract_percall=True
+            ),
+            FunctionCallConfiguration("b", "test.py", "b", extract_cumtime=True),
         ]
         config = ExtractionConfig(patterns=patterns)
 
@@ -96,7 +100,7 @@ class TestExtractionConfig:
 
     def test_results_columns(self):
         """Test results_columns includes base columns."""
-        patterns = [CallPattern("test", "test.py", "test")]
+        patterns = [FunctionCallConfiguration("test", "test.py", "test")]
         config = ExtractionConfig(patterns=patterns)
 
         cols = config.results_columns
@@ -181,7 +185,7 @@ class TestExtractionConfigExtract:
     def test_extract_metrics_custom_patterns(self, sample_stats_file):
         """Test extracting metrics with custom patterns."""
         patterns = [
-            CallPattern(
+            FunctionCallConfiguration(
                 "custom_func",
                 "some/custom/module.py",
                 "custom_function",
@@ -202,7 +206,7 @@ class TestExtractionConfigExtract:
 
     def test_extract_metrics_missing_patterns(self, sample_stats_file):
         """Test extracting metrics when patterns don't match."""
-        patterns = [CallPattern("missing", "nonexistent.py", "missing")]
+        patterns = [FunctionCallConfiguration("missing", "nonexistent.py", "missing")]
         config = ExtractionConfig(patterns=patterns)
         metrics = config.extract_metrics(sample_stats_file)
 

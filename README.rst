@@ -174,12 +174,12 @@ The ``profile_sim`` command profiles runtime and memory usage for a single simul
 given a model specification file. The underlying simulation model can
 be any vivarium-based model, including the aforementioned scaling simulations as well as models in a 
 separate repository. This will generate, in addition to the standard simulation outputs, profiling data 
-depending on the profiling backend provided. By default, runtime profiling is performed with ``cProfile``, but 
+depending on the profiler backend provided. By default, runtime profiling is performed with ``cProfile``, but 
 you can also use ``scalene`` for more detailed call stack analysis.
 
 The ``run_benchmark`` command runs multiple iterations of one or more model specification, in order to compare
 the results. It requires at least one baseline model (specified as ``model_spec_baseline.yaml``) for comparison,
-and any other number of 'experiment' models to benchmark against the baseline, which can be specifid via glob patterns.
+and any other number of 'experiment' models to benchmark against the baseline, which can be passed via glob patterns.
 You can separately configure the sample size of runs for the baseline and experiment models. The command aggregates
 the profiling results and generates summary statistics and visualizations for a default set of important function calls
 to help identify performance bottlenecks.

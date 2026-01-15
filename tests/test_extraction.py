@@ -314,14 +314,20 @@ patterns:
   - name: setup
     filename: /vivarium/framework/engine.py
     function_name: setup
-    extract_cumtime: true
+    extract_cumtime: false
     cumtime_template: "rt_{name}_s"
+    "extract_percall": false
+    "extract_ncalls": true
   - name: my_function
     filename: my/module.py
     function_name: my_function
-    extract_cumtime: true
+    extract_cumtime: false
     extract_percall: true
+    extract_ncalls: true
     cumtime_template: "custom_{name}_time"
+    "percall_template": "{name}_custom_percall"
+    "ncalls_template": "{name}_new_custom_ncalls"
+    line_number: 42
 """
         yaml_path = temp_yaml_file(yaml_content)
         config = ExtractionConfig.from_yaml(yaml_path)
@@ -343,10 +349,13 @@ patterns:
 
         # Pattern with selective metrics and custom template
         pattern3 = config.patterns[2]
-        assert pattern3.extract_cumtime is True
+        assert pattern3.extract_cumtime is False
         assert pattern3.extract_percall is True
-        assert pattern3.extract_ncalls is False  # default
+        assert pattern3.extract_ncalls is True
         assert pattern3.cumtime_col == "custom_my_function_time"
+        assert pattern3.percall_col == "my_function_custom_percall"
+        assert pattern3.ncalls_col == "my_function_new_custom_ncalls"
+        assert pattern3.line_number == 42
 
     def test_from_yaml_file_not_found(self):
         """Test error when YAML file doesn't exist."""

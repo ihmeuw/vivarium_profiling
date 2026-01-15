@@ -8,6 +8,8 @@ from loguru import logger
 
 from vivarium_profiling.tools.extraction import DEFAULT_BOTTLENECKS, ExtractionConfig
 
+from vivarium_profiling.tools.extraction import DEFAULT_BOTTLENECKS
+
 """Benchmark summarization and visualization utilities."""
 
 BASELINE = "model_spec_baseline.yaml"  # Default baseline model spec name

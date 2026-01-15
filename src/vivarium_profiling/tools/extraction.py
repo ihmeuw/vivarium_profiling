@@ -24,12 +24,12 @@ class FunctionCallConfiguration:
     Attributes
     ----------
     name
-        Logical name for the metric (e.g., "gather_results", "setup"). Used as prefix
+        Logical name for the metric (e.g., "pipeline_call"). Used as prefix
         for generated column names.
     filename
-        Path pattern to match the source file (e.g., "results/manager.py").
+        Path pattern to match the source file (e.g., "values/pipeline.py").
     function_name
-        Name of the function to match (e.g., "gather_results").
+        Name of the function to match (e.g., "__call__").
     line_number
         Optional line number to disambiguate functions with the same name in the same file.
         If None, we will match the first line number that matches, which corresonds to the highest cumulative runtime.

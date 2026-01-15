@@ -23,6 +23,7 @@ class TestFunctionCallConfiguration:
         assert pattern.filename == "test.py"
         assert pattern.function_name == "test_func"
         assert pattern.pattern == r"test\.py:\d+\(test_func\)"
+        assert pattern.line_number is None
         assert pattern.extract_cumtime is True
         assert pattern.extract_percall is False
         assert pattern.extract_ncalls is False
@@ -61,6 +62,18 @@ class TestFunctionCallConfiguration:
         assert pattern.pattern == r"engine\.py:\d+\(phase\)"
         assert pattern.cumtime_col == "rt_phase_s"
         assert pattern.columns == ["rt_phase_s"]
+
+    def test_function_call_configuration_with_line_number(self):
+        """Test FunctionCallConfiguration with specific line number."""
+        pattern = FunctionCallConfiguration(
+            name="pipeline_call",
+            filename="values/pipeline.py",
+            function_name="__call__",
+            line_number=66,
+        )
+
+        assert pattern.pattern == r"values/pipeline\.py:66\(__call__\)"
+        assert pattern.line_number == 66
 
 
 class TestExtractionConfig:

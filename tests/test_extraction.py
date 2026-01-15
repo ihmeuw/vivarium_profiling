@@ -224,3 +224,59 @@ class TestExtractionConfigExtract:
         metrics = config.extract_metrics(sample_stats_file)
 
         assert metrics["missing_cumtime"] is None
+
+    def test_extract_metrics_duplicate_func_no_line_number(self, sample_stats_file):
+        """Test that we match the first occurrence when line_number is None."""
+        patterns = [
+            FunctionCallConfiguration(
+                "duplicate_first",
+                "vivarium/framework/values/pipeline.py",
+                "duplicate_func",
+                line_number=None,  # Should match first occurrence
+                extract_cumtime=True,
+                extract_percall=True,
+                extract_ncalls=True,
+            )
+        ]
+        config = ExtractionConfig(patterns=patterns)
+        metrics = config.extract_metrics(sample_stats_file)
+
+        # Should match line 66, the first occurrence
+        assert metrics["duplicate_first_cumtime"] == 0.450
+        assert metrics["duplicate_first_percall"] == 0.003
+        assert metrics["duplicate_first_ncalls"] == 150
+
+    def test_extract_metrics_duplicate_func_with_line_number(self, sample_stats_file):
+        """Test that we can match specific occurrences by line number."""
+        patterns = [
+            FunctionCallConfiguration(
+                "duplicate_line_66",
+                "vivarium/framework/values/pipeline.py",
+                "duplicate_func",
+                line_number=66,
+                extract_cumtime=True,
+                extract_percall=True,
+                extract_ncalls=True,
+            ),
+            FunctionCallConfiguration(
+                "duplicate_line_150",
+                "vivarium/framework/values/pipeline.py",
+                "duplicate_func",
+                line_number=150,
+                extract_cumtime=True,
+                extract_percall=True,
+                extract_ncalls=True,
+            ),
+        ]
+        config = ExtractionConfig(patterns=patterns)
+        metrics = config.extract_metrics(sample_stats_file)
+
+        # Line 66
+        assert metrics["duplicate_line_66_cumtime"] == 0.450
+        assert metrics["duplicate_line_66_percall"] == 0.003
+        assert metrics["duplicate_line_66_ncalls"] == 150
+
+        # Line 150
+        assert metrics["duplicate_line_150_cumtime"] == 0.800
+        assert metrics["duplicate_line_150_percall"] == 0.004
+        assert metrics["duplicate_line_150_ncalls"] == 200

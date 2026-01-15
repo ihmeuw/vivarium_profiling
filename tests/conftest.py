@@ -94,6 +94,8 @@ def sample_stats_file(tmp_path) -> Path:
      2459    0.200    0.000    0.800    0.000 /vivarium/framework/population/population_view.py:133(get)
    50/25    0.150    0.003    0.600    0.024 /some/custom/module.py:100(custom_function)
       100    0.025    0.000    0.500    0.005 /another/module.py:200(another_function)
+      150    0.030    0.000    0.450    0.003 /vivarium/framework/values/pipeline.py:66(duplicate_func)
+      200    0.040    0.000    0.800    0.004 /vivarium/framework/values/pipeline.py:150(duplicate_func)
 """
     stats_file = tmp_path / "test_stats.txt"
     stats_file.write_text(stats_content)

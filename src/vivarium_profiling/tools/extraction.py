@@ -18,7 +18,7 @@ from typing import Any
 import yaml
 from loguru import logger
 
-# Default values for optional CallPattern fields
+# Default values for optional FunctionCallConfiguration fields
 DEFAULT_PATTERN_CONFIG = {
     "extract_cumtime": True,
     "extract_percall": False,
@@ -280,8 +280,8 @@ class ExtractionConfig:
                     f"Pattern '{name}' requires 'filename' and 'function_name' fields"
                 )
 
-            # Create CallPattern from merged config
-            pattern = CallPattern(**merged_config)
+            # Create FunctionCallConfiguration from merged config
+            pattern = FunctionCallConfiguration(**merged_config)
 
             patterns.append(pattern)
 

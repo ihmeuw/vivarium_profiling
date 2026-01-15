@@ -3,7 +3,10 @@
 import pandas as pd
 import pytest
 
-from vivarium_profiling.tools.extraction import CallPattern, ExtractionConfig
+from vivarium_profiling.tools.extraction import (
+    ExtractionConfig,
+    FunctionCallConfiguration,
+)
 from vivarium_profiling.tools.summarize import summarize
 
 
@@ -44,7 +47,7 @@ def sample_benchmark_data():
 def minimal_extraction_config():
     """Create a minimal extraction config for testing."""
     patterns = [
-        CallPattern(
+        FunctionCallConfiguration(
             "gather_results",
             "results/manager.py",
             "gather_results",
@@ -52,14 +55,14 @@ def minimal_extraction_config():
             extract_percall=True,
             extract_ncalls=True,
         ),
-        CallPattern(
+        FunctionCallConfiguration(
             "setup",
             "/vivarium/framework/engine.py",
             "setup",
             extract_cumtime=True,
             cumtime_template="rt_{name}_s",
         ),
-        CallPattern(
+        FunctionCallConfiguration(
             "run",
             "/vivarium/framework/engine.py",
             "run",

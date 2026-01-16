@@ -343,12 +343,14 @@ patterns:
 
         # Pattern with custom template
         pattern2 = config.patterns[1]
+        assert pattern2.name == "setup"
         assert pattern2.cumtime_template == "rt_{name}_s"
         assert pattern2.cumtime_col == "rt_setup_s"
         assert pattern2.extract_percall is False  # default
 
         # Pattern with selective metrics and custom template
         pattern3 = config.patterns[2]
+        assert pattern3.name == "my_function"
         assert pattern3.extract_cumtime is False
         assert pattern3.extract_percall is True
         assert pattern3.extract_ncalls is True

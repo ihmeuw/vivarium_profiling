@@ -5,8 +5,8 @@ from pathlib import Path
 import pytest
 
 from vivarium_profiling.tools.extraction import (
-    CallPattern,
     ExtractionConfig,
+    FunctionCallConfiguration,
     bottleneck_config,
     extract_runtime,
     parse_function_metrics,
@@ -26,17 +26,20 @@ def temp_yaml_file(tmp_path):
     return _create_yaml
 
 
-class TestCallPattern:
-    """Tests for CallPattern dataclass."""
+class TestFunctionCallConfiguration:
+    """Tests for FunctionCallConfiguration dataclass."""
 
-    def test_call_pattern_defaults(self):
-        """Test CallPattern with default extraction flags."""
-        pattern = CallPattern(name="test_func", filename="test.py", function_name="test_func")
+    def test_function_call_configuration_defaults(self):
+        """Test FunctionCallConfiguration with default extraction flags."""
+        pattern = FunctionCallConfiguration(
+            name="test_func", filename="test.py", function_name="test_func"
+        )
 
         assert pattern.name == "test_func"
         assert pattern.filename == "test.py"
         assert pattern.function_name == "test_func"
         assert pattern.pattern == r"test\.py:\d+\(test_func\)"
+        assert pattern.line_number is None
         assert pattern.extract_cumtime is True
         assert pattern.extract_percall is False
         assert pattern.extract_ncalls is False
@@ -45,9 +48,9 @@ class TestCallPattern:
         assert pattern.ncalls_col == "test_func_ncalls"
         assert pattern.columns == ["test_func_cumtime"]
 
-    def test_call_pattern_all_extracts(self):
-        """Test CallPattern with all extraction flags enabled."""
-        pattern = CallPattern(
+    def test_function_call_configuration_all_extracts(self):
+        """Test FunctionCallConfiguration with all extraction flags enabled."""
+        pattern = FunctionCallConfiguration(
             name="bottleneck",
             filename="test.py",
             function_name="bottleneck",
@@ -63,9 +66,9 @@ class TestCallPattern:
             "bottleneck_ncalls",
         ]
 
-    def test_call_pattern_custom_templates(self):
-        """Test CallPattern with custom column templates."""
-        pattern = CallPattern(
+    def test_function_call_configuration_custom_templates(self):
+        """Test FunctionCallConfiguration with custom column templates."""
+        pattern = FunctionCallConfiguration(
             name="phase",
             filename="engine.py",
             function_name="phase",
@@ -75,6 +78,18 @@ class TestCallPattern:
         assert pattern.pattern == r"engine\.py:\d+\(phase\)"
         assert pattern.cumtime_col == "rt_phase_s"
         assert pattern.columns == ["rt_phase_s"]
+
+    def test_function_call_configuration_with_line_number(self):
+        """Test FunctionCallConfiguration with specific line number."""
+        pattern = FunctionCallConfiguration(
+            name="pipeline_call",
+            filename="values/pipeline.py",
+            function_name="__call__",
+            line_number=66,
+        )
+
+        assert pattern.pattern == r"values/pipeline\.py:66\(__call__\)"
+        assert pattern.line_number == 66
 
 
 class TestExtractionConfig:
@@ -92,7 +107,7 @@ class TestExtractionConfig:
     def test_extraction_config_custom_patterns(self):
         """Test ExtractionConfig with custom patterns."""
         patterns = [
-            CallPattern("func1", "test.py", "func1"),
+            FunctionCallConfiguration("func1", "test.py", "func1"),
             bottleneck_config("func2", "test.py", "func2"),
         ]
         config = ExtractionConfig(patterns=patterns)
@@ -103,8 +118,10 @@ class TestExtractionConfig:
     def test_metric_columns(self):
         """Test metric_columns property."""
         patterns = [
-            CallPattern("a", "test.py", "a", extract_cumtime=True, extract_percall=True),
-            CallPattern("b", "test.py", "b", extract_cumtime=True),
+            FunctionCallConfiguration(
+                "a", "test.py", "a", extract_cumtime=True, extract_percall=True
+            ),
+            FunctionCallConfiguration("b", "test.py", "b", extract_cumtime=True),
         ]
         config = ExtractionConfig(patterns=patterns)
 
@@ -112,7 +129,7 @@ class TestExtractionConfig:
 
     def test_results_columns(self):
         """Test results_columns includes base columns."""
-        patterns = [CallPattern("test", "test.py", "test")]
+        patterns = [FunctionCallConfiguration("test", "test.py", "test")]
         config = ExtractionConfig(patterns=patterns)
 
         cols = config.results_columns
@@ -197,7 +214,7 @@ class TestExtractionConfigExtract:
     def test_extract_metrics_custom_patterns(self, sample_stats_file):
         """Test extracting metrics with custom patterns."""
         patterns = [
-            CallPattern(
+            FunctionCallConfiguration(
                 "custom_func",
                 "some/custom/module.py",
                 "custom_function",
@@ -218,11 +235,67 @@ class TestExtractionConfigExtract:
 
     def test_extract_metrics_missing_patterns(self, sample_stats_file):
         """Test extracting metrics when patterns don't match."""
-        patterns = [CallPattern("missing", "nonexistent.py", "missing")]
+        patterns = [FunctionCallConfiguration("missing", "nonexistent.py", "missing")]
         config = ExtractionConfig(patterns=patterns)
         metrics = config.extract_metrics(sample_stats_file)
 
         assert metrics["missing_cumtime"] is None
+
+    def test_extract_metrics_duplicate_func_no_line_number(self, sample_stats_file):
+        """Test that we match the first occurrence when line_number is None."""
+        patterns = [
+            FunctionCallConfiguration(
+                "duplicate_first",
+                "vivarium/framework/values/pipeline.py",
+                "duplicate_func",
+                line_number=None,  # Should match first occurrence
+                extract_cumtime=True,
+                extract_percall=True,
+                extract_ncalls=True,
+            )
+        ]
+        config = ExtractionConfig(patterns=patterns)
+        metrics = config.extract_metrics(sample_stats_file)
+
+        # Should match line 66, the first occurrence
+        assert metrics["duplicate_first_cumtime"] == 0.450
+        assert metrics["duplicate_first_percall"] == 0.003
+        assert metrics["duplicate_first_ncalls"] == 150
+
+    def test_extract_metrics_duplicate_func_with_line_number(self, sample_stats_file):
+        """Test that we can match specific occurrences by line number."""
+        patterns = [
+            FunctionCallConfiguration(
+                "duplicate_line_66",
+                "vivarium/framework/values/pipeline.py",
+                "duplicate_func",
+                line_number=66,
+                extract_cumtime=True,
+                extract_percall=True,
+                extract_ncalls=True,
+            ),
+            FunctionCallConfiguration(
+                "duplicate_line_150",
+                "vivarium/framework/values/pipeline.py",
+                "duplicate_func",
+                line_number=150,
+                extract_cumtime=True,
+                extract_percall=True,
+                extract_ncalls=True,
+            ),
+        ]
+        config = ExtractionConfig(patterns=patterns)
+        metrics = config.extract_metrics(sample_stats_file)
+
+        # Line 66
+        assert metrics["duplicate_line_66_cumtime"] == 0.450
+        assert metrics["duplicate_line_66_percall"] == 0.003
+        assert metrics["duplicate_line_66_ncalls"] == 150
+
+        # Line 150
+        assert metrics["duplicate_line_150_cumtime"] == 0.800
+        assert metrics["duplicate_line_150_percall"] == 0.004
+        assert metrics["duplicate_line_150_ncalls"] == 200
 
 
 class TestYAMLParsing:
@@ -241,14 +314,20 @@ patterns:
   - name: setup
     filename: /vivarium/framework/engine.py
     function_name: setup
-    extract_cumtime: true
+    extract_cumtime: false
     cumtime_template: "rt_{name}_s"
+    "extract_percall": false
+    "extract_ncalls": true
   - name: my_function
     filename: my/module.py
     function_name: my_function
-    extract_cumtime: true
+    extract_cumtime: false
     extract_percall: true
+    extract_ncalls: true
     cumtime_template: "custom_{name}_time"
+    "percall_template": "{name}_custom_percall"
+    "ncalls_template": "{name}_new_custom_ncalls"
+    line_number: 42
 """
         yaml_path = temp_yaml_file(yaml_content)
         config = ExtractionConfig.from_yaml(yaml_path)
@@ -264,16 +343,21 @@ patterns:
 
         # Pattern with custom template
         pattern2 = config.patterns[1]
+        assert pattern2.name == "setup"
         assert pattern2.cumtime_template == "rt_{name}_s"
         assert pattern2.cumtime_col == "rt_setup_s"
         assert pattern2.extract_percall is False  # default
 
         # Pattern with selective metrics and custom template
         pattern3 = config.patterns[2]
-        assert pattern3.extract_cumtime is True
+        assert pattern3.name == "my_function"
+        assert pattern3.extract_cumtime is False
         assert pattern3.extract_percall is True
-        assert pattern3.extract_ncalls is False  # default
+        assert pattern3.extract_ncalls is True
         assert pattern3.cumtime_col == "custom_my_function_time"
+        assert pattern3.percall_col == "my_function_custom_percall"
+        assert pattern3.ncalls_col == "my_function_new_custom_ncalls"
+        assert pattern3.line_number == 42
 
     def test_from_yaml_file_not_found(self):
         """Test error when YAML file doesn't exist."""

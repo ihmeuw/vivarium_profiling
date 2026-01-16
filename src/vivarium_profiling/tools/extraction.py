@@ -1,8 +1,9 @@
 """Data extraction utilities for benchmark profiling results.
 
 This module provides configurable extraction of profiling metrics from cProfile
-stats files and memory profiler output. The extraction is driven by CallPattern
-objects that map logical names to regex patterns for matching function calls.
+stats files and memory profiler output. The extraction is driven by
+FunctionCallConfiguration objects that map logical names to regex patterns for
+matching function calls.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import Any
 import yaml
 from loguru import logger
 
-# Default values for optional CallPattern fields
+# Default values for optional FunctionCallConfiguration fields
 DEFAULT_PATTERN_CONFIG = {
     "extract_cumtime": True,
     "extract_percall": False,
@@ -29,18 +30,22 @@ DEFAULT_PATTERN_CONFIG = {
 
 
 @dataclass
-class CallPattern:
+class FunctionCallConfiguration:
     """Configuration for extracting metrics for a specific function from cProfile stats.
 
     Attributes
     ----------
     name
-        Logical name for the metric (e.g., "gather_results", "setup"). Used as prefix
+        Logical name for the metric (e.g., "pipeline_call"). Used as prefix
         for generated column names.
     filename
-        Path pattern to match the source file (e.g., "results/manager.py").
+        Path pattern to match the source file (e.g., "values/pipeline.py").
     function_name
-        Name of the function to match (e.g., "gather_results").
+        Name of the function to match (e.g., "__call__").
+    line_number
+        Optional line number to disambiguate functions with the same name in the same file.
+        If None, we will match the first line number that matches, which corresonds to the highest cumulative runtime.
+        Default None.
     extract_cumtime
         Whether to extract cumulative time. Default True.
     extract_percall
@@ -59,6 +64,7 @@ class CallPattern:
     name: str
     filename: str
     function_name: str
+    line_number: int | None = None
     extract_cumtime: bool = True
     extract_percall: bool = False
     extract_ncalls: bool = False
@@ -70,7 +76,8 @@ class CallPattern:
     def pattern(self) -> str:
         """Regex pattern to match the function in cProfile stats output."""
         escaped_file = re.escape(self.filename)
-        return rf"{escaped_file}:\d+\({self.function_name}\)"
+        line_pattern = str(self.line_number) if self.line_number is not None else r"\d+"
+        return rf"{escaped_file}:{line_pattern}\({self.function_name}\)"
 
     @property
     def cumtime_col(self) -> str:
@@ -100,8 +107,10 @@ class CallPattern:
         return cols
 
 
-def bottleneck_config(name: str, filename: str, function_name: str) -> CallPattern:
-    """Create a CallPattern for a bottleneck function (extracts all 3 metrics).
+def bottleneck_config(
+    name: str, filename: str, function_name: str, line_number: int | None = None
+) -> FunctionCallConfiguration:
+    """Create a FunctionCallConfiguration for a bottleneck function (extracts all 3 metrics).
 
     Parameters
     ----------
@@ -111,24 +120,29 @@ def bottleneck_config(name: str, filename: str, function_name: str) -> CallPatte
         Path pattern to match the source file.
     function_name
         Name of the function to match.
+    line_number
+        Optional line number to disambiguate functions with the same name.
 
     Returns
     -------
-        CallPattern configured for bottleneck extraction.
+        FunctionCallConfiguration configured for bottleneck extraction.
 
     """
-    return CallPattern(
+    return FunctionCallConfiguration(
         name=name,
         filename=filename,
         function_name=function_name,
+        line_number=line_number,
         extract_cumtime=True,
         extract_percall=True,
         extract_ncalls=True,
     )
 
 
-def phase_config(name: str, filename: str = "/vivarium/framework/engine.py") -> CallPattern:
-    """Create a CallPattern for a simulation phase (extracts cumtime only).
+def phase_config(
+    name: str, filename: str = "/vivarium/framework/engine.py", line_number: int | None = None
+) -> FunctionCallConfiguration:
+    """Create a FunctionCallConfiguration for a simulation phase (extracts cumtime only).
 
     Parameters
     ----------
@@ -136,16 +150,19 @@ def phase_config(name: str, filename: str = "/vivarium/framework/engine.py") -> 
         Phase name as it appears in the cProfile output (e.g., "setup", "run").
     filename
         Path to match the source file containing the phase function.
+    line_number
+        Optional line number to disambiguate functions with the same name.
 
     Returns
     -------
-        CallPattern configured for phase extraction.
+        FunctionCallConfiguration configured for phase extraction.
 
     """
-    return CallPattern(
+    return FunctionCallConfiguration(
         name=name,
         filename=filename,
         function_name=name,
+        line_number=line_number,
         extract_cumtime=True,
         extract_percall=False,
         extract_ncalls=False,
@@ -189,11 +206,11 @@ class ExtractionConfig:
     Attributes
     ----------
     patterns
-        List of CallPattern objects defining what metrics to extract.
+        List of FunctionCallConfiguration objects defining what metrics to extract.
 
     """
 
-    def __init__(self, patterns: list[CallPattern] | None = None):
+    def __init__(self, patterns: list[FunctionCallConfiguration] | None = None):
         if patterns is None:
             patterns = DEFAULT_BOTTLENECKS + DEFAULT_PHASES
         self.patterns = patterns
@@ -263,8 +280,8 @@ class ExtractionConfig:
                     f"Pattern '{name}' requires 'filename' and 'function_name' fields"
                 )
 
-            # Create CallPattern from merged config
-            pattern = CallPattern(**merged_config)
+            # Create FunctionCallConfiguration from merged config
+            pattern = FunctionCallConfiguration(**merged_config)
 
             patterns.append(pattern)
 

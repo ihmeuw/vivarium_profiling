@@ -1,4 +1,4 @@
-**v0.3.0 - 01/16/2026**
+**v0.3.0 - 01/22/2026**
 
  - Convert data ETL to click commands
  - add configurable function call patterns

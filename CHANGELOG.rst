@@ -1,3 +1,7 @@
+**v0.3.1 - 01/26/2026**
+
+ - Adjust the parameters for run_benchmark command.
+
 **v0.3.0 - 01/22/2026**
 
  - Convert data ETL to click commands

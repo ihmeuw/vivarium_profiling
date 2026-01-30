@@ -275,7 +275,7 @@ def run_benchmark(
 
     # Expand additional model specs (supporting glob patterns)
     additional_paths = _expand_model_specs(list(additional_model_specifications))
-    model_specifications = [str(baseline_path)] + [str(p) for p in additional_paths]
+    model_specifications = [baseline_path] + [p for p in additional_paths]
 
     # Run benchmarks with error handling
     main = handle_exceptions(run_benchmark_loop, logger, with_debugger=with_debugger)

@@ -1,3 +1,7 @@
+**v0.3.3 - 04/14/26**
+
+ - Use vivarium_dependencies for vbu pins
+
 **v0.3.2 - 03/25/26**
 
  - Remove upstream_repos from Jenkinsfile

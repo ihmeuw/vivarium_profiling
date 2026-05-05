@@ -25,10 +25,6 @@ To use the new package from the monorepo:
 
    import vivarium.profiling        # was: import vivarium_profiling
 
-For a transition period, ``import vivarium_profiling`` will continue to work
-via the ``vivarium-compat`` shim, but it will emit a ``DeprecationWarning``
-and eventually be removed; please update your imports.
-
 ----
 
 Vivarium simulation model for the vivarium_profiling project.

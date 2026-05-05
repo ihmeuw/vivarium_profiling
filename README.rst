@@ -9,8 +9,7 @@ vivarium_profiling
 Development has moved to the `vivarium-suite monorepo <https://github.com/ihmeuw/vivarium-suite>`_,
 where this code now lives at ``libs/profiling/`` and is published as ``vivarium-profiling`` on PyPI.
 
-No new releases will be cut from this repository. File issues and PRs against 
-`vivarium-suite <https://github.com/ihmeuw/vivarium-suite>`_ instead.
+No new releases will be cut from this repository. File issues and PRs against `vivarium-suite` instead.
 
 To use the new package from the monorepo:
 

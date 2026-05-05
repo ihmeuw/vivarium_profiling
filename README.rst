@@ -2,6 +2,39 @@
 vivarium_profiling
 ===============================
 
+----
+
+.. warning::
+
+   **This repository has been archived.** Development has moved to the
+   `vivarium-suite monorepo <https://github.com/ihmeuw/vivarium-suite>`_,
+   where this code now lives at ``libs/profiling/`` and is published as
+   ``vivarium-profiling`` on PyPI.
+
+   No new releases will be cut from this repository. File issues and PRs
+   against `vivarium-suite <https://github.com/ihmeuw/vivarium-suite>`_ instead.
+
+Migration guide
+---------------
+
+**Install:**
+
+.. code-block:: bash
+
+   pip install vivarium-profiling   # was: pip install vivarium_profiling
+
+**Import:**
+
+.. code-block:: python
+
+   import vivarium.profiling        # was: import vivarium_profiling
+
+For a transition period, ``import vivarium_profiling`` will continue to work
+via the ``vivarium-compat`` shim, but it will emit a ``DeprecationWarning``
+and eventually be removed; please update your imports.
+
+----
+
 Vivarium simulation model for the vivarium_profiling project.
 
 .. contents::

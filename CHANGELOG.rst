@@ -1,7 +1,7 @@
 **v0.3.6 - 05/05/26**
 
-Archive notice: this package is archived and no longer maintained. Please use the 
-vivarium-suite monorepo for future development. Refer to the README for more details.
+- Adds an archive banner to the README pointing at the ``vivarium-suite``
+  monorepo (``libs/profiling/``, published as ``vivarium-profiling``).
 
 **v0.3.5 - 04/21/26**
 

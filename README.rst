@@ -2,30 +2,41 @@
 vivarium_profiling
 ===============================
 
-----
+**NOTE: This repository is archived and will receive no further updates.**
 
-**NOTE: This repository has been archived.**
+The ``vivarium_profiling`` package's development has migrated into the
+`vivarium-suite monorepo <https://github.com/ihmeuw/vivarium-suite>`_.
 
-Development has moved to the `vivarium-suite monorepo <https://github.com/ihmeuw/vivarium-suite>`_,
-where this code now lives at ``libs/profiling/`` and is published as ``vivarium-profiling`` on PyPI.
+What changed
+------------
 
-No new releases will be cut from this repository. File issues and PRs against `vivarium-suite` instead.
+- **PyPI distribution:** ``vivarium-profiling`` (this repository never published to PyPI;
+  the monorepo owns the name)
+- **Import path:** ``vivarium_profiling`` -> ``vivarium.profiling``
+- **Source:** ``ihmeuw/vivarium_profiling`` (archived) ->
+  ``ihmeuw/vivarium-suite`` (under ``libs/profiling/``)
 
-To use the new package from the monorepo:
+This repository was never published to PyPI. The ``vivarium-profiling`` distribution
+name is published from the monorepo starting at ``v0.4.0``. New development happens
+in the monorepo; this repository is frozen and will not receive updates.
+
+To migrate fully to the new package
+-----------------------------------
 
 **Install:**
 
 .. code-block:: bash
 
-   pip install vivarium-profiling   # was never deployed to PyPI prior to monorepo
+    pip install vivarium-profiling
 
 **Import:**
 
 .. code-block:: python
 
-   import vivarium.profiling        # was: import vivarium_profiling
+    import vivarium.profiling  # was: import vivarium_profiling
 
-----
+Original package overview
+=========================
 
 Vivarium simulation model for the vivarium_profiling project.
 
